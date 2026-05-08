@@ -119,8 +119,9 @@ int main(void)
   
   // Wait for wakeup to be released
   while( GPIO_PIN_RESET == HAL_GPIO_ReadPin( BUTTON_SW3_GPIO_Port, BUTTON_SW3_Pin ) );
-  HAL_Delay( 50u );  // debounce
-  
+  HAL_Delay( 100u );  // debounce
+  Buttons_GetEvent( BUTTON_SW3 );  // clear event
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
