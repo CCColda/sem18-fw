@@ -1,0 +1,41 @@
+#ifndef __FONT_H
+#define __FONT_H
+
+#include "stdint.h"
+#include "lcd.h"
+
+typedef struct {
+    const uint8_t width;
+    const uint8_t height;
+    const uint16_t *data;
+} FontDef;
+
+//Font lib.
+extern const FontDef Font_7x10;
+extern const FontDef Font_11x18;
+extern const FontDef Font_16x26;
+
+//16-bit(RGB565) Image lib.
+/*******************************************
+ *             CAUTION:
+ *   If the MCU onchip flash cannot
+ *  store such huge image data,please
+ *           do not use it.
+ * These pics are for test purpose only.
+ *******************************************/
+
+/* 128x128 pixel RGB565 image */
+extern const uint16_t saber[][128];
+
+/* 240x240 pixel RGB565 image 
+extern const uint16_t knky[][240];
+extern const uint16_t tek[][240];
+extern const uint16_t adi1[][240];
+*/
+
+
+U8 Font_GetWidth( E_LCD_FONT_TYPE eFont );
+U8 Font_GetHeight( E_LCD_FONT_TYPE eFont );
+U16 const* Font_GetFont( E_LCD_FONT_TYPE eFont );
+
+#endif
