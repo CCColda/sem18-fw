@@ -27,6 +27,13 @@
 //--------------------------------------------------------------------------------------------------------/
 // Types
 //--------------------------------------------------------------------------------------------------------/
+//! \brief Charging states
+typedef enum
+{
+  CHARGER_STATE_NONE,
+  CHARGER_STATE_CHARGING,
+  CHARGER_STATE_STANDBY
+} E_HOUSEKEEPING_CHARGERSTATE;
 
 
 //--------------------------------------------------------------------------------------------------------/
@@ -37,10 +44,15 @@
 //--------------------------------------------------------------------------------------------------------/
 // Interface functions
 //--------------------------------------------------------------------------------------------------------/
+// System functions
 void Housekeeping_Init( void );
 void Housekeeping_Cycle( void );
+BOOL Housekeeping_RTCCheckBkup( void );
+
+// API functions
 void Housekeeping_DeepSleep( void );
-BOOL Housekeeping_RTC_Check_Bkup( void );
+float Housekeeping_GetBatteryVoltage( void );
+E_HOUSEKEEPING_CHARGERSTATE Housekeeping_GetChargerState( void );
 
 
 #endif  // HOUSEKEEPING_H

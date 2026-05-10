@@ -153,17 +153,15 @@ int main(void)
     {
       u32Timer = HAL_GetTick();
       
-      // Measure battery/input voltage
-      HAL_GPIO_WritePin( VMEAS_GND_GPIO_Port, VMEAS_GND_Pin, GPIO_PIN_RESET );
-      HAL_Delay(1u);
-      HAL_ADC_Start( &hadc1 );
-      HAL_ADC_PollForConversion( &hadc1, 100 );
-      uint16_t u16ADCmeasurement = HAL_ADC_GetValue( &hadc1 );
-      HAL_ADC_Stop( &hadc1 );
-      HAL_GPIO_WritePin( VMEAS_GND_GPIO_Port, VMEAS_GND_Pin, GPIO_PIN_SET );
       char acString[] = "Voltage: 0.00 V";
-      snprintf( acString, sizeof( acString ), "Voltage: %1.2f V", (((float)u16ADCmeasurement)*(2.0f*3.0f/4095.0f)) );
-
+      if( CHARGER_STATE_NONE == Housekeeping_GetChargerState() )
+      {
+	snprintf( acString, sizeof( acString ), "Voltage: %1.2f V", Housekeeping_GetBatteryVoltage() );
+      }
+      else
+      {
+        snprintf( acString, sizeof( acString ), "Charging...    " );
+      }
       // Display charger status
       LCD_PrintString( 10, 10, acString, LCD_FONT_11x18, WHITE, BLACK );
       LCD_PrintString( 10, 28, "nCHARGE: ", LCD_FONT_11x18, WHITE, BLACK );

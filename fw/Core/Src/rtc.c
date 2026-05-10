@@ -60,7 +60,7 @@ void MX_RTC_Init(void)
 
   /* USER CODE BEGIN Check_RTC_BKUP */
   // Check backup registers for RTC to be initialized or not
-  if( TRUE == Housekeeping_RTC_Check_Bkup() )
+  if( TRUE == Housekeeping_RTCCheckBkup() )
   {
     // RTC was initialized earlier, don't reset it
     return;

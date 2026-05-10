@@ -73,7 +73,10 @@ extern volatile U16 gau16LCDFrameBuffer[ LCD_WIDTH*LCD_HEIGHT ];
 //--------------------------------------------------------------------------------------------------------/
 // Interface functions
 //--------------------------------------------------------------------------------------------------------/
+// System functions
 void LCD_Init( void );
+
+// API functions
 void LCD_Clear( U16 u16Color );
 void LCD_Pixel( U8 u8X, U8 u8Y, U16 u16Color );
 void LCD_PrintChar( U16 u16X, U16 u16Y, char ch, E_LCD_FONT_TYPE eFont, U16 u16Color, U16 u16BGColor );

@@ -37,7 +37,10 @@
 //--------------------------------------------------------------------------------------------------------/
 // Interface functions
 //--------------------------------------------------------------------------------------------------------/
+// System functions
 void Buzzer_Init( void );
+
+// API functions
 void Buzzer_Note( uint32_t u32FrequencyHz, uint8_t u8DutyCycle );
 void Buzzer_Silence( void );
 

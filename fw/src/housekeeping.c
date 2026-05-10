@@ -16,6 +16,7 @@
 //--------------------------------------------------------------------------------------------------------/
 #include "main.h"
 #include "quadspi.h"
+#include "adc.h"
 #include "types.h"
 
 // Own include
@@ -36,6 +37,8 @@
 //--------------------------------------------------------------------------------------------------------/
 // Global variables
 //--------------------------------------------------------------------------------------------------------/
+//! \brief Voltage of the battery in Volts
+static float gfBatteryVoltage;
 
 
 //--------------------------------------------------------------------------------------------------------/
@@ -69,7 +72,8 @@
  *********************************************************************/
 void Housekeeping_Init( void )
 {
-  
+  // Initialize global variables
+  gfBatteryVoltage = 4.2f;
 }
 
 /*! *******************************************************************
@@ -79,7 +83,27 @@ void Housekeeping_Init( void )
  *********************************************************************/
 void Housekeeping_Cycle( void )
 {
-  
+  static uint32_t u32Timer = 0u;
+  U16 u16ADCmeasurement;
+
+  // Measure battery/input voltage every 100 ms
+  if( HAL_GetTick() - u32Timer > 100u )
+  {
+    u32Timer = HAL_GetTick();
+    // Enable voltage divider
+    HAL_GPIO_WritePin( VMEAS_GND_GPIO_Port, VMEAS_GND_Pin, GPIO_PIN_RESET );
+    HAL_Delay(1u);
+    //TODO: it would be better without waiting...
+    HAL_ADC_Start( &hadc1 );
+    HAL_ADC_PollForConversion( &hadc1, 100 );
+    u16ADCmeasurement = HAL_ADC_GetValue( &hadc1 );
+    HAL_ADC_Stop( &hadc1 );
+    //TODO: disconnect ADC from pin
+    // Disable voltage divider
+    HAL_GPIO_WritePin( VMEAS_GND_GPIO_Port, VMEAS_GND_Pin, GPIO_PIN_SET );
+    // Calculate voltage
+    gfBatteryVoltage = ((float)u16ADCmeasurement)*(2.0f*3.0f/4095.0f);
+  }
 }
 
 /*! *******************************************************************
@@ -148,7 +172,7 @@ void Housekeeping_DeepSleep( void )
  * \param  -
  * \return TRUE if RTC was initialized earlier
  *********************************************************************/
-BOOL Housekeeping_RTC_Check_Bkup( void )
+BOOL Housekeeping_RTCCheckBkup( void )
 {
   BOOL bRet = FALSE;
   
@@ -167,5 +191,66 @@ BOOL Housekeeping_RTC_Check_Bkup( void )
   HAL_PWR_DisableBkUpAccess();
   return bRet;
 }
+
+/*! *******************************************************************
+ * \brief  Returns the voltage of the battery
+ * \param  -
+ * \return Battery voltage in Volts.
+ *********************************************************************/
+float Housekeeping_GetBatteryVoltage( void )
+{
+  float fReturn = 4.2f;
+
+  if( ( GPIO_PIN_SET == HAL_GPIO_ReadPin( CHARGER_nCHARGE_GPIO_Port, CHARGER_nCHARGE_Pin ) )
+   && ( GPIO_PIN_SET == HAL_GPIO_ReadPin( CHARGER_STANDBY_GPIO_Port, CHARGER_STANDBY_Pin ) ) )
+  {
+    // Return the measured voltage, as it is not connected to the charge
+    fReturn = gfBatteryVoltage;
+  }
+  return fReturn;
+}
+
+/*! *******************************************************************
+ * \brief  Returns the current status of charging
+ * \param  -
+ * \return Charger status
+ *********************************************************************/
+E_HOUSEKEEPING_CHARGERSTATE Housekeeping_GetChargerState( void )
+{
+  E_HOUSEKEEPING_CHARGERSTATE eReturn = CHARGER_STATE_NONE;
+  GPIO_PinState enCharge = HAL_GPIO_ReadPin( CHARGER_nCHARGE_GPIO_Port, CHARGER_nCHARGE_Pin );
+  GPIO_PinState enStandby = HAL_GPIO_ReadPin( CHARGER_STANDBY_GPIO_Port, CHARGER_STANDBY_Pin );
+
+  if( ( GPIO_PIN_RESET == enCharge )
+   && ( GPIO_PIN_SET == enStandby ) )
+  {
+    eReturn = CHARGER_STATE_CHARGING;
+  }
+  else if( ( GPIO_PIN_SET == enCharge )
+   && ( GPIO_PIN_RESET == enStandby ) )
+  {
+    eReturn = CHARGER_STATE_STANDBY;
+  }
+  else if( ( GPIO_PIN_RESET == enCharge )
+   && ( GPIO_PIN_RESET == enStandby ) )
+  {
+    //TODO: this should not happen, should be fatal error
+    eReturn = CHARGER_STATE_STANDBY;
+  }
+
+  return eReturn;
+}
+
+/*! *******************************************************************
+ * \brief
+ * \param
+ * \return
+ *********************************************************************/
+
+/*! *******************************************************************
+ * \brief
+ * \param
+ * \return
+ *********************************************************************/
 
 //-----------------------------------------------< EOF >--------------------------------------------------/

@@ -68,8 +68,11 @@ extern volatile E_BUTTONS_STATE gaeButtonsState[ NUM_BUTTONS ];
 //--------------------------------------------------------------------------------------------------------/
 // Interface functions
 //--------------------------------------------------------------------------------------------------------/
+// System functions
 void Buttons_Init( void );
 void Buttons_TimerIT( void );
+
+// API functions
 E_BUTTONS_EVENT Buttons_GetEvent( E_BUTTONS_INDEX eButton );
 void Buttons_SetRepeatedPresses( BOOL bSet );
 
