@@ -84,7 +84,7 @@ void Housekeeping_Init( void )
 void Housekeeping_Cycle( void )
 {
   static uint32_t u32Timer = 0u;
-  U16 u16ADCmeasurement;
+  U16 au16ADCmeasurement[ 2u ];
 
   // Measure battery/input voltage every 100 ms
   if( HAL_GetTick() - u32Timer > 100u )
@@ -96,13 +96,15 @@ void Housekeeping_Cycle( void )
     //TODO: it would be better without waiting...
     HAL_ADC_Start( &hadc1 );
     HAL_ADC_PollForConversion( &hadc1, 100 );
-    u16ADCmeasurement = HAL_ADC_GetValue( &hadc1 );
+    au16ADCmeasurement[ 0u ] = HAL_ADC_GetValue( &hadc1 );
+    HAL_ADC_PollForConversion( &hadc1, 100 );
+    au16ADCmeasurement[ 1u ] = HAL_ADC_GetValue( &hadc1 );
     HAL_ADC_Stop( &hadc1 );
     //TODO: disconnect ADC from pin
     // Disable voltage divider
     HAL_GPIO_WritePin( VMEAS_GND_GPIO_Port, VMEAS_GND_Pin, GPIO_PIN_SET );
     // Calculate voltage
-    gfBatteryVoltage = ((float)u16ADCmeasurement)*(2.0f*3.0f/4095.0f);
+    gfBatteryVoltage = ((float)au16ADCmeasurement[ 0u ])*(2.0f*((float)__HAL_ADC_CALC_VREFANALOG_VOLTAGE(au16ADCmeasurement[ 1u ],ADC_RESOLUTION_12B)/1000.0f)/4095.0f);
   }
 }
 

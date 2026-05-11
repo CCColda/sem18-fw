@@ -158,6 +158,10 @@ int main(void)
       {
 	snprintf( acString, sizeof( acString ), "Voltage: %1.2f V", Housekeeping_GetBatteryVoltage() );
       }
+      else if( CHARGER_STATE_STANDBY == Housekeeping_GetChargerState() )
+      {
+        snprintf( acString, sizeof( acString ), "Charging ended " );
+      }
       else
       {
         snprintf( acString, sizeof( acString ), "Charging...    " );
