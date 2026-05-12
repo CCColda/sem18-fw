@@ -3,16 +3,16 @@
 *
 * All rights reserved
 *
-* \file housekeeping.h
+* \file task_clock.h
 *
-* \brief Housekeeping task and routines
+* \brief Clock task
 *
 * \author K. Sz. Horvath
 *
 **********************************************************************************************************/
 
-#ifndef HOUSEKEEPING_H
-#define HOUSEKEEPING_H
+#ifndef TASK_CLOCK_H
+#define TASK_CLOCK_H
 
 //--------------------------------------------------------------------------------------------------------/
 // Include files
@@ -27,13 +27,6 @@
 //--------------------------------------------------------------------------------------------------------/
 // Types
 //--------------------------------------------------------------------------------------------------------/
-//! \brief Charging states
-typedef enum
-{
-  CHARGER_STATE_NONE,
-  CHARGER_STATE_CHARGING,
-  CHARGER_STATE_STANDBY
-} E_HOUSEKEEPING_CHARGERSTATE;
 
 
 //--------------------------------------------------------------------------------------------------------/
@@ -44,18 +37,10 @@ typedef enum
 //--------------------------------------------------------------------------------------------------------/
 // Interface functions
 //--------------------------------------------------------------------------------------------------------/
-// System functions
-void Housekeeping_Init( void );
-void Housekeeping_Cycle( void );
-BOOL Housekeeping_RTCCheckBkup( void );
-
-// API functions
-void Housekeeping_DeepSleep( void );
-float Housekeeping_GetBatteryVoltage( void );
-U8 Housekeeping_GetBatteryPercentage( void );
-E_HOUSEKEEPING_CHARGERSTATE Housekeeping_GetChargerState( void );
+void Task_Clock_Init( void );
+void Task_Clock_Cycle( void );
 
 
-#endif  // HOUSEKEEPING_H
+#endif  // TASK_CLOCK_H
 
 //-----------------------------------------------< EOF >--------------------------------------------------/

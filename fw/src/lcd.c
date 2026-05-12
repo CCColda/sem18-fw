@@ -15,6 +15,7 @@
 // Include files
 //--------------------------------------------------------------------------------------------------------/
 #include <string.h>  // memset, memcpy, etc.
+#include <stdlib.h>  // abs, etc.
 #include "main.h"
 #include "spi.h"
 #include "dma.h"
@@ -148,6 +149,8 @@ volatile U16 gau16LCDFrameBuffer[ LCD_WIDTH*LCD_HEIGHT ];
 //--------------------------------------------------------------------------------------------------------/
 static void WriteCommand( U8 *pu8Cmd, U8 u8NumParameters );
 static void TurnOnOff( BOOL bOn );
+static void PlotLineLow( U8 u8X0, U8 u8Y0, U8 u8X1, U8 u8Y1, U16 u16Color );
+static void PlotLineHigh( U8 u8X0, U8 u8Y0, U8 u8X1, U8 u8Y1, U16 u16Color );
 
 
 //--------------------------------------------------------------------------------------------------------/
@@ -184,6 +187,90 @@ static void TurnOnOff( BOOL bOn )
   U8 au8cmd[] = { ((TRUE == bOn) ? CMD_DISPON /* TEON */ : CMD_DISPOFF /* TEOFF */) };
   WriteCommand( au8cmd, sizeof( au8cmd ) - 1u );
 }
+
+/*! *******************************************************************
+ * \brief  Line drawing algorithm for low gradients
+ * \param  u8X0: origin X coordinate
+ * \param  u8Y0: origin Y coordinate
+ * \param  u8X1: destination X coordinate
+ * \param  u8Y1: destination Y coordinate
+ * \param  u16Color: color of the line to be drawn
+ * \return -
+ *********************************************************************/
+static void PlotLineLow( U8 u8X0, U8 u8Y0, U8 u8X1, U8 u8Y1, U16 u16Color )
+{
+  I8  i8dx, i8dy, i8yi;
+  I16 i16D;
+  U8  u8X, u8Y;
+  
+  i8dx = u8X1 - u8X0;
+  i8dy = u8Y1 - u8Y0;
+
+  i8yi = 1;
+  if( i8dy < 0 )
+  {
+    i8yi = -1;
+    i8dy = -i8dy;
+  }
+  i16D = ( i8dy * 2 ) - i8dx;
+  
+  u8Y = u8Y0;
+  for( u8X = u8X0; u8X <= u8X1; u8X++ )
+  {
+    LCD_Pixel( u8X, u8Y, u16Color );
+    if( i16D > 0 )
+    {
+      u8Y += i8yi;
+      i16D = i16D - ( i8dx * 2 );
+    }
+    i16D += ( i8dy * 2 );
+  }
+}
+
+/*! *******************************************************************
+ * \brief  Line drawing algorithm for high gradients
+ * \param  u8X0: origin X coordinate
+ * \param  u8Y0: origin Y coordinate
+ * \param  u8X1: destination X coordinate
+ * \param  u8Y1: destination Y coordinate
+ * \param  u16Color: color of the line to be drawn
+ * \return -
+ *********************************************************************/
+static void PlotLineHigh( U8 u8X0, U8 u8Y0, U8 u8X1, U8 u8Y1, U16 u16Color )
+{
+  I8 i8dx, i8dy, i8xi;
+  I16 i16D;
+  U8 u8X, u8Y;
+  
+  i8dx = u8X1 - u8X0;
+  i8dy = u8Y1 - u8Y0;
+
+  i8xi = 1;
+  if( i8dx < 0 )
+  {
+    i8xi = -1;
+    i8dx = -i8dx;
+  }
+  i16D = ( i8dx * 2 ) - i8dy;
+  
+  u8X = u8X0;
+  for( u8Y = u8Y0; u8Y <= u8Y1; u8Y++ )
+  {
+    LCD_Pixel( u8X, u8Y, u16Color );
+    if( i16D > 0 )
+    {
+      u8X += i8xi;
+      i16D = i16D - ( i8dy * 2 );
+    }
+    i16D += ( i8dx * 2 );
+  }
+}
+
+/*! *******************************************************************
+ * \brief
+ * \param
+ * \return
+ *********************************************************************/
 
 /*! *******************************************************************
  * \brief
@@ -271,6 +358,71 @@ void LCD_Pixel( U8 u8X, U8 u8Y, U16 u16Color )
   if( ( u8X < LCD_WIDTH ) && ( u8Y < LCD_HEIGHT ) )
   {
     gau16LCDFrameBuffer[ u8Y*LCD_WIDTH + u8X ] = u16Color;
+  }
+}
+
+/*! *******************************************************************
+ * \brief  Draws a line on screen using Bresenham's line algorithm
+ * \param  u8X0: origin X coordinate
+ * \param  u8Y0: origin Y coordinate
+ * \param  u8X1: destination X coordinate
+ * \param  u8Y1: destination Y coordinate
+ * \param  u16Color: color of the line to be drawn
+ * \return -
+ *********************************************************************/
+void LCD_DrawLine( U8 u8X0, U8 u8Y0, U8 u8X1, U8 u8Y1, U16 u16Color )
+{
+  // If the line is just 1 pixel
+  if( ( u8X0 == u8X1 ) && ( u8Y0 == u8Y1 ) )
+  {
+    LCD_Pixel( u8X0, u8Y0, u16Color );
+    return;
+  }
+  
+  // Note: this can be optimized!
+  if( abs( u8Y1 - u8Y0 ) < abs( u8X1 - u8X0 ) )
+  {
+    if( u8X0 > u8X1 )
+    {
+      PlotLineLow( u8X1, u8Y1, u8X0, u8Y0, u16Color );
+    }
+    else
+    {
+      PlotLineLow( u8X0, u8Y0, u8X1, u8Y1, u16Color );
+    }
+  }
+  else
+  {
+    if( u8Y0 > u8Y1 )
+    {
+      PlotLineHigh( u8X1, u8Y1, u8X0, u8Y0, u16Color );
+    }
+    else
+    {
+      PlotLineHigh( u8X0, u8Y0, u8X1, u8Y1, u16Color );
+    }
+  }
+}
+
+/*! *******************************************************************
+ * \brief  Draws a filled rectangle on the screen
+ * \param  u8X0: origin X coordinate
+ * \param  u8Y0: origin Y coordinate
+ * \param  u8X1: destination X coordinate
+ * \param  u8Y1: destination Y coordinate
+ * \param  u16Color: color of the rectange to be drawn
+ * \return -
+ *********************************************************************/
+void LCD_DrawFilledRectangle( U8 u8X0, U8 u8Y0, U8 u8X1, U8 u8Y1, U16 u16Color )
+{
+  U8 u8X, u8Y;
+  
+  for( u8Y = u8Y0; u8Y <= u8Y1; u8Y++ )
+  {
+    for( u8X = u8X0; u8X <= u8X1; u8X++ )
+    {
+      LCD_Pixel( u8X, u8Y, u16Color );
+    }
   }
 }
 

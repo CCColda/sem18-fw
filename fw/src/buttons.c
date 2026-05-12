@@ -61,7 +61,7 @@ static const S_GPIO_PIN casPins[ NUM_BUTTONS ] =
 };
 
 //! \brief Long pressed buttons generate repeated events, or not
-static volatile BOOL gbRepeatedPress = FALSE;
+static volatile BOOL gbRepeatedPress;
 
 //! \brief States of each buttons
 volatile E_BUTTONS_STATE gaeButtonsState[ NUM_BUTTONS ];
@@ -106,6 +106,7 @@ void Buttons_Init( void )
     gaeButtonsState[ u32Index ] = BUTTON_INACTIVE;
     gaeButtonsEvent[ u32Index ] = BUTTON_NOEVENT;
   }
+  gbRepeatedPress = FALSE;
 }
 
 /*! *******************************************************************

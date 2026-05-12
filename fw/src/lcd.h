@@ -79,6 +79,8 @@ void LCD_Init( void );
 // API functions
 void LCD_Clear( U16 u16Color );
 void LCD_Pixel( U8 u8X, U8 u8Y, U16 u16Color );
+void LCD_DrawLine( U8 u8X0, U8 u8Y0, U8 u8X1, U8 u8Y1, U16 u16Color );
+void LCD_DrawFilledRectangle( U8 u8X0, U8 u8Y0, U8 u8X1, U8 u8Y1, U16 u16Color );
 void LCD_PrintChar( U16 u16X, U16 u16Y, char ch, E_LCD_FONT_TYPE eFont, U16 u16Color, U16 u16BGColor );
 void LCD_PrintString( U16 u16X, U16 u16Y, const char* acString, E_LCD_FONT_TYPE eFont, U16 u16Color, U16 u16BGColor );
 

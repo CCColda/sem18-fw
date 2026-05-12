@@ -206,10 +206,35 @@ float Housekeeping_GetBatteryVoltage( void )
   if( ( GPIO_PIN_SET == HAL_GPIO_ReadPin( CHARGER_nCHARGE_GPIO_Port, CHARGER_nCHARGE_Pin ) )
    && ( GPIO_PIN_SET == HAL_GPIO_ReadPin( CHARGER_STANDBY_GPIO_Port, CHARGER_STANDBY_Pin ) ) )
   {
-    // Return the measured voltage, as it is not connected to the charge
+    // Return the measured voltage, as it is not connected to the charger
     fReturn = gfBatteryVoltage;
   }
   return fReturn;
+}
+
+/*! *******************************************************************
+ * \brief  Returns the charge of the battery in percentage
+ * \param  -
+ * \return Battery charge in percentage [0..100]
+ *********************************************************************/
+U8 Housekeeping_GetBatteryPercentage( void )
+{
+  U8 u8Return = 100u;
+
+  if( ( GPIO_PIN_SET == HAL_GPIO_ReadPin( CHARGER_nCHARGE_GPIO_Port, CHARGER_nCHARGE_Pin ) )
+   && ( GPIO_PIN_SET == HAL_GPIO_ReadPin( CHARGER_STANDBY_GPIO_Port, CHARGER_STANDBY_Pin ) ) )
+  {
+    //TODO: better algorithm for calculating the charge level
+    if( gfBatteryVoltage >= 3.0f )
+    {
+      u8Return = (U8)(100.0f*(gfBatteryVoltage-3.0f)/1.2f);
+    }
+    else  // undervoltage
+    {
+      u8Return = 0u;
+    }
+  }
+  return u8Return;
 }
 
 /*! *******************************************************************

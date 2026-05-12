@@ -35,6 +35,7 @@
 #include "buzzer.h"
 #include "housekeeping.h"
 #include "lcd.h"
+#include "task_clock.h"
 
 /* USER CODE END Includes */
 
@@ -116,11 +117,12 @@ int main(void)
   Buttons_Init();
   Buzzer_Init();
   LCD_Init();
-  
+  Task_Clock_Init();
+    
   // Wait for wakeup to be released
   while( GPIO_PIN_RESET == HAL_GPIO_ReadPin( BUTTON_SW3_GPIO_Port, BUTTON_SW3_Pin ) );
   HAL_Delay( 100u );  // debounce
-  Buttons_GetEvent( BUTTON_SW3 );  // clear event
+  (void)Buttons_GetEvent( BUTTON_SW3 );  // clear event
 
   /* USER CODE END 2 */
 
@@ -134,70 +136,8 @@ int main(void)
     // System tasks
     Housekeeping_Cycle();
     
-    // Test tasks
-    if( BUTTON_PRESSED == Buttons_GetEvent( BUTTON_SW1 ) )
-    {
-      Buzzer_Note( 440u, 128 );
-    }
-    if( BUTTON_PRESSED == Buttons_GetEvent( BUTTON_SW2 ) )
-    {
-      Buzzer_Silence();
-    }
-    if( BUTTON_PRESSED == Buttons_GetEvent( BUTTON_SW3 ) )
-    {
-      Housekeeping_DeepSleep();
-    }
-    
-    static uint32_t u32Timer = 0u;
-    if( HAL_GetTick() - u32Timer > 100u )
-    {
-      u32Timer = HAL_GetTick();
-      
-      char acString[] = "Voltage: 0.00 V";
-      if( CHARGER_STATE_NONE == Housekeeping_GetChargerState() )
-      {
-	snprintf( acString, sizeof( acString ), "Voltage: %1.2f V", Housekeeping_GetBatteryVoltage() );
-      }
-      else if( CHARGER_STATE_STANDBY == Housekeeping_GetChargerState() )
-      {
-        snprintf( acString, sizeof( acString ), "Charging ended " );
-      }
-      else
-      {
-        snprintf( acString, sizeof( acString ), "Charging...    " );
-      }
-      // Display charger status
-      LCD_PrintString( 10, 10, acString, LCD_FONT_11x18, WHITE, BLACK );
-      LCD_PrintString( 10, 28, "nCHARGE: ", LCD_FONT_11x18, WHITE, BLACK );
-      if( GPIO_PIN_SET == HAL_GPIO_ReadPin( CHARGER_nCHARGE_GPIO_Port, CHARGER_nCHARGE_Pin ) )
-      {
-        LCD_PrintString( 109, 28, "1", LCD_FONT_11x18, WHITE, BLACK );
-      }
-      else
-      {
-        LCD_PrintString( 109, 28, "0", LCD_FONT_11x18, WHITE, BLACK );
-      }
-      LCD_PrintString( 10, 46, "Standby: ", LCD_FONT_11x18, WHITE, BLACK );
-      if( GPIO_PIN_SET == HAL_GPIO_ReadPin( CHARGER_STANDBY_GPIO_Port, CHARGER_STANDBY_Pin ) )
-      {
-        LCD_PrintString( 109, 46, "1", LCD_FONT_11x18, WHITE, BLACK );
-      }
-      else
-      {
-        LCD_PrintString( 109, 46, "0", LCD_FONT_11x18, WHITE, BLACK );
-      }
-      
-      // Display RTC
-      RTC_DateTypeDef sdatestructureget;
-      RTC_TimeTypeDef stimestructureget;
-      /* Get the RTC current Time */
-      HAL_RTC_GetTime( &hrtc, &stimestructureget, RTC_FORMAT_BIN );
-      /* Get the RTC current Date */
-      HAL_RTC_GetDate( &hrtc, &sdatestructureget, RTC_FORMAT_BIN );
-      /* Display time Format : hh:mm:ss */
-      snprintf( acString,sizeof( acString ),"%02d:%02d:%02d",stimestructureget.Hours, stimestructureget.Minutes, stimestructureget.Seconds );
-      LCD_PrintString( 10, 64, acString, LCD_FONT_16x26, WHITE, BLACK );
-    }    
+    // Program tasks
+    Task_Clock_Cycle();
     
   }
   /* USER CODE END 3 */
