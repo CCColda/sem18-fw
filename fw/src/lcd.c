@@ -199,20 +199,20 @@ static void TurnOnOff( BOOL bOn )
  *********************************************************************/
 static void PlotLineLow( U8 u8X0, U8 u8Y0, U8 u8X1, U8 u8Y1, U16 u16Color )
 {
-  I8  i8dx, i8dy, i8yi;
+  I16 i16dx, i16dy, i16yi;
   I16 i16D;
   U8  u8X, u8Y;
   
-  i8dx = u8X1 - u8X0;
-  i8dy = u8Y1 - u8Y0;
+  i16dx = u8X1 - u8X0;
+  i16dy = u8Y1 - u8Y0;
 
-  i8yi = 1;
-  if( i8dy < 0 )
+  i16yi = 1;
+  if( i16dy < 0 )
   {
-    i8yi = -1;
-    i8dy = -i8dy;
+    i16yi = -1;
+    i16dy = -i16dy;
   }
-  i16D = ( i8dy * 2 ) - i8dx;
+  i16D = ( i16dy * 2 ) - i16dx;
   
   u8Y = u8Y0;
   for( u8X = u8X0; u8X <= u8X1; u8X++ )
@@ -220,10 +220,10 @@ static void PlotLineLow( U8 u8X0, U8 u8Y0, U8 u8X1, U8 u8Y1, U16 u16Color )
     LCD_Pixel( u8X, u8Y, u16Color );
     if( i16D > 0 )
     {
-      u8Y += i8yi;
-      i16D = i16D - ( i8dx * 2 );
+      u8Y = u8Y + i16yi;
+      i16D = i16D - ( i16dx * 2 );
     }
-    i16D += ( i8dy * 2 );
+    i16D += ( i16dy * 2 );
   }
 }
 
@@ -238,20 +238,20 @@ static void PlotLineLow( U8 u8X0, U8 u8Y0, U8 u8X1, U8 u8Y1, U16 u16Color )
  *********************************************************************/
 static void PlotLineHigh( U8 u8X0, U8 u8Y0, U8 u8X1, U8 u8Y1, U16 u16Color )
 {
-  I8 i8dx, i8dy, i8xi;
+  I16 i16dx, i16dy, i16xi;
   I16 i16D;
   U8 u8X, u8Y;
   
-  i8dx = u8X1 - u8X0;
-  i8dy = u8Y1 - u8Y0;
+  i16dx = u8X1 - u8X0;
+  i16dy = u8Y1 - u8Y0;
 
-  i8xi = 1;
-  if( i8dx < 0 )
+  i16xi = 1;
+  if( i16dx < 0 )
   {
-    i8xi = -1;
-    i8dx = -i8dx;
+    i16xi = -1;
+    i16dx = -i16dx;
   }
-  i16D = ( i8dx * 2 ) - i8dy;
+  i16D = ( i16dx * 2 ) - i16dy;
   
   u8X = u8X0;
   for( u8Y = u8Y0; u8Y <= u8Y1; u8Y++ )
@@ -259,10 +259,10 @@ static void PlotLineHigh( U8 u8X0, U8 u8Y0, U8 u8X1, U8 u8Y1, U16 u16Color )
     LCD_Pixel( u8X, u8Y, u16Color );
     if( i16D > 0 )
     {
-      u8X += i8xi;
-      i16D = i16D - ( i8dy * 2 );
+      u8X += i16xi;
+      i16D = i16D - ( i16dy * 2 );
     }
-    i16D += ( i8dx * 2 );
+    i16D += ( i16dx * 2 );
   }
 }
 
@@ -338,7 +338,6 @@ void LCD_Init( void )
 void LCD_Clear( U16 u16Color )
 {
   U32 u32Index;
-  u16Color = (u16Color<<8u) | (u16Color>>8u);
   for( u32Index = 0u; u32Index < sizeof( gau16LCDFrameBuffer )/sizeof( U16 ); u32Index++ )
   {
     gau16LCDFrameBuffer[ u32Index ] = u16Color;
@@ -349,12 +348,11 @@ void LCD_Clear( U16 u16Color )
  * \brief  Set a pixel to a specific color
  * \param  u8X: horizontal coordinate
  * \param  u8Y: vertical coordinate
- * \param  u16Color: color word (BGR565 format)
+ * \param  u16Color: color word (big-endian RGB565)
  * \return -
  *********************************************************************/
 void LCD_Pixel( U8 u8X, U8 u8Y, U16 u16Color )
 {
-  u16Color = (u16Color<<8u) | (u16Color>>8u);
   if( ( u8X < LCD_WIDTH ) && ( u8Y < LCD_HEIGHT ) )
   {
     gau16LCDFrameBuffer[ u8Y*LCD_WIDTH + u8X ] = u16Color;
@@ -417,7 +415,6 @@ void LCD_DrawFilledRectangle( U8 u8X0, U8 u8Y0, U8 u8X1, U8 u8Y1, U16 u16Color )
 {
   U8 u8X, u8Y;
   
-  u16Color = (u16Color<<8u) | (u16Color>>8u);
   for( u8Y = u8Y0; u8Y <= u8Y1; u8Y++ )
   {
     for( u8X = u8X0; u8X <= u8X1; u8X++ )
@@ -440,9 +437,6 @@ void LCD_DrawFilledRectangle( U8 u8X0, U8 u8Y0, U8 u8X1, U8 u8Y1, U16 u16Color )
 void LCD_SwitchColorsInRectangle( U8 u8X0, U8 u8Y0, U8 u8X1, U8 u8Y1, U16 u16Color1, U16 u16Color2 )
 {
   U8 u8X, u8Y;
-
-  u16Color1 = (u16Color1<<8u) | (u16Color1>>8u);
-  u16Color2 = (u16Color2<<8u) | (u16Color2>>8u);
 
   for( u8Y = u8Y0; u8Y <= u8Y1; u8Y++ )
   {
@@ -476,11 +470,6 @@ void LCD_PrintChar( U16 u16X, U16 u16Y, char cCharacter, E_LCD_FONT_TYPE eFont, 
   U16 const* pu16Font = Font_GetFont( eFont );
   U32 u32LineIndex, b, u32WidthIndex;
 
-  u16Color = (u16Color<<8u) | (u16Color>>8u);
-  u16BGColor = (u16BGColor<<8u) | (u16BGColor>>8u);
-  
-  //ST7789_SetAddressWindow(x, y, x + font.width - 1, y + font.height - 1);
-  
   for( u32LineIndex = 0; u32LineIndex < u8Height; u32LineIndex++ )
   {
     b = pu16Font[ (cCharacter - 32u) * u8Height + u32LineIndex ];
@@ -488,14 +477,10 @@ void LCD_PrintChar( U16 u16X, U16 u16Y, char cCharacter, E_LCD_FONT_TYPE eFont, 
     {
       if ((b << u32WidthIndex) & 0x8000)
       {
-        //uint8_t data[] = {color >> 8, color & 0xFF};
-        //ST7789_WriteData(data, sizeof(data));
         gau16LCDFrameBuffer[ (u16Y+u32LineIndex)*LCD_WIDTH + u16X + u32WidthIndex ] = u16Color;
       }
       else
       {
-        //uint8_t data[] = {bgcolor >> 8, bgcolor & 0xFF};
-        //ST7789_WriteData(data, sizeof(data));
         gau16LCDFrameBuffer[ (u16Y+u32LineIndex)*LCD_WIDTH + u16X + u32WidthIndex ] = u16BGColor;
      }
     }

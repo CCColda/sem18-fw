@@ -29,30 +29,30 @@
 //--------------------------------------------------------------------------------------------------------/
 // Types
 //--------------------------------------------------------------------------------------------------------/
-//! \brief Some known colors in RGB565 format. Feel free to extend!
+//! \brief Some known colors in big-endian(!) RGB565 format. Feel free to extend!
 typedef enum
 {
   WHITE      = 0xFFFFu,
   BLACK      = 0x0000u,
-  BLUE       = 0x001Fu,
-  RED        = 0xF800u,
-  MAGENTA    = 0xF81Fu,
-  GREEN      = 0x07E0u,
-  CYAN       = 0x7FFFu,
-  YELLOW     = 0xFFE0u,
-  GRAY       = 0x8430u,
-  BRED       = 0xF81Fu,
-  GRED       = 0xFFE0u,
-  GBLUE      = 0x07FFu,
-  BROWN      = 0xBC40u,
-  BRRED      = 0xFC07u,
-  DARKBLUE   = 0x01CFu,
-  LIGHTBLUE  = 0x7D7Cu,
-  GRAYBLUE   = 0x5458u,
-  LIGHTGREEN = 0x841Fu,
-  LGRAY      = 0xC618u,
-  LGRAYBLUE  = 0xA651u,
-  LBBLUE     = 0x2B12u
+  BLUE       = 0x1F00u,
+  RED        = 0x00F8u,
+  MAGENTA    = 0x1FF8u,
+  GREEN      = 0xE007u,
+  CYAN       = 0xFF7Fu,
+  YELLOW     = 0xE0FFu,
+  GRAY       = 0x3084u,
+  BRED       = 0x1FF8u,
+  GRED       = 0xE0FFu,
+  GBLUE      = 0xFF07u,
+  BROWN      = 0x40BCu,
+  BRRED      = 0x07FCu,
+  DARKBLUE   = 0xCF01u,
+  LIGHTBLUE  = 0x7C7Du,
+  GRAYBLUE   = 0x5854u,
+  LIGHTGREEN = 0x1F84u,
+  LGRAY      = 0x18C6u,
+  LGRAYBLUE  = 0x51A6u,
+  LBBLUE     = 0x122Bu
 } E_LCD_COLORS;
 
 //! \brief Font types

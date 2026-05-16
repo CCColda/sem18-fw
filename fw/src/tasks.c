@@ -17,6 +17,7 @@
 #include "types.h"
 #include "task_menu.h"
 #include "task_clock.h"
+#include "task_tetris.h"
 
 // Own include
 #include "tasks.h"
@@ -76,6 +77,9 @@ void Tasks_Init( void )
   // Default task: clock
   gpfTaskInitializer = Task_Clock_Init;
   gpfTaskMainCycle = Task_Clock_Cycle;
+
+  gpfTaskInitializer = Task_Tetris_Init;
+  gpfTaskMainCycle = Task_Tetris_Cycle;
 
   // Initialize special menu task
   Task_Menu_Init();

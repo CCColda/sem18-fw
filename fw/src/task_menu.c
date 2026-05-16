@@ -22,6 +22,7 @@
 #include "buttons.h"
 #include "tasks.h"
 #include "task_clock.h"
+#include "task_tetris.h"
 
 // Own include
 #include "task_menu.h"
@@ -64,7 +65,7 @@ static const S_MENU gsMainMenu;
 //! \brief Structure containing the main (root) menu
 static const S_MENU gsMainMenu =
 {
-  2u,    // Number of items
+  3u,    // Number of items
   NULL,  // When entering
   NULL,  // When exiting
   {
@@ -76,6 +77,16 @@ static const S_MENU gsMainMenu =
       {
         .pfnInitFunction = Task_Clock_Init,
         .pfnMainCycleFunction = Task_Clock_Cycle
+      }
+    },
+    {
+      .pu8ItemString = "Tetris",
+      .bSelectable = TRUE,
+      .eAction = MENU_ACTION_WIDGET_TASK,
+      .pAction = &(S_MENU_WIDGET_TASK)
+      {
+        .pfnInitFunction = Task_Tetris_Init,
+        .pfnMainCycleFunction = Task_Tetris_Cycle
       }
     },
     {
