@@ -35,7 +35,7 @@
 #include "buzzer.h"
 #include "housekeeping.h"
 #include "lcd.h"
-#include "task_clock.h"
+#include "tasks.h"
 
 /* USER CODE END Includes */
 
@@ -117,8 +117,8 @@ int main(void)
   Buttons_Init();
   Buzzer_Init();
   LCD_Init();
-  Task_Clock_Init();
-    
+  Tasks_Init();
+
   // Wait for wakeup to be released
   while( GPIO_PIN_RESET == HAL_GPIO_ReadPin( BUTTON_SW3_GPIO_Port, BUTTON_SW3_Pin ) );
   HAL_Delay( 100u );  // debounce
@@ -137,8 +137,7 @@ int main(void)
     Housekeeping_Cycle();
     
     // Program tasks
-    Task_Clock_Cycle();
-    
+    Tasks_Cycle();
   }
   /* USER CODE END 3 */
 }

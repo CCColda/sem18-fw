@@ -22,6 +22,7 @@
 #include "buzzer.h"
 #include "lcd.h"
 #include "housekeeping.h"
+#include "tasks.h"
 
 // Own include
 #include "task_clock.h"
@@ -362,10 +363,17 @@ static void CheckButtons( void )
       }
     }
   }
+
   // Middle button: deep sleep
   if( BUTTON_PRESSED == Buttons_GetEvent( BUTTON_SW3 ) )
   {
     Housekeeping_DeepSleep();
+  }
+
+  // Joystick push: go to the menu
+  if( BUTTON_PRESSED == Buttons_GetEvent( BUTTON_SW4_PUSH ) )
+  {
+    Tasks_EndTask();
   }
 }
 

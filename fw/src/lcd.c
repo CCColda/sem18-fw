@@ -417,11 +417,45 @@ void LCD_DrawFilledRectangle( U8 u8X0, U8 u8Y0, U8 u8X1, U8 u8Y1, U16 u16Color )
 {
   U8 u8X, u8Y;
   
+  u16Color = (u16Color<<8u) | (u16Color>>8u);
   for( u8Y = u8Y0; u8Y <= u8Y1; u8Y++ )
   {
     for( u8X = u8X0; u8X <= u8X1; u8X++ )
     {
-      LCD_Pixel( u8X, u8Y, u16Color );
+      gau16LCDFrameBuffer[ u8Y*LCD_WIDTH + u8X ] = u16Color;
+    }
+  }
+}
+
+/*! *******************************************************************
+ * \brief  Replaces two colors with each other in a rectangle on the screen
+ * \param  u8X0: origin X coordinate
+ * \param  u8Y0: origin Y coordinate
+ * \param  u8X1: destination X coordinate
+ * \param  u8Y1: destination Y coordinate
+ * \param  u16Color1: first color to be exchanged
+ * \param  u16Color2: second color to be exchanged
+ * \return -
+ *********************************************************************/
+void LCD_SwitchColorsInRectangle( U8 u8X0, U8 u8Y0, U8 u8X1, U8 u8Y1, U16 u16Color1, U16 u16Color2 )
+{
+  U8 u8X, u8Y;
+
+  u16Color1 = (u16Color1<<8u) | (u16Color1>>8u);
+  u16Color2 = (u16Color2<<8u) | (u16Color2>>8u);
+
+  for( u8Y = u8Y0; u8Y <= u8Y1; u8Y++ )
+  {
+    for( u8X = u8X0; u8X <= u8X1; u8X++ )
+    {
+      if( u16Color1 == gau16LCDFrameBuffer[ u8Y*LCD_WIDTH + u8X ] )
+      {
+        gau16LCDFrameBuffer[ u8Y*LCD_WIDTH + u8X ] = u16Color2;
+      }
+      else if( u16Color2 == gau16LCDFrameBuffer[ u8Y*LCD_WIDTH + u8X ] )
+      {
+        gau16LCDFrameBuffer[ u8Y*LCD_WIDTH + u8X ] = u16Color1;
+      }
     }
   }
 }
@@ -484,7 +518,8 @@ void LCD_PrintString( U16 u16X, U16 u16Y, const char* acString, E_LCD_FONT_TYPE 
 
   while( *acString )
   {
-    if( u16X + u8Width >= LCD_WIDTH )
+    if( ( u16X + u8Width >= LCD_WIDTH )
+     || ( '\n' == *acString ) )  // line feed
     {
       u16X = 0u;
       u16Y += u8Height;
@@ -493,9 +528,8 @@ void LCD_PrintString( U16 u16X, U16 u16Y, const char* acString, E_LCD_FONT_TYPE 
         break;
       }
       
-      if( ' ' == *acString )
+      if( '\n' == *acString )
       {
-        // skip spaces in the beginning of the new line
         acString++;
         continue;
       }
