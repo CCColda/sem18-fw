@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "rtc.h"
+#include "spi.h"
 #include "types.h"
 #include "buttons.h"
 #include "buzzer.h"
@@ -31,8 +32,11 @@
 //--------------------------------------------------------------------------------------------------------/
 // Definitions
 //--------------------------------------------------------------------------------------------------------/
-#define BATTERY_ICON_WIDTH    (40u)  //!< Width of the battery icon in pixels
-#define BATTERY_ICON_HEIGHT   (15u)  //!< Height of the battery icon in pixels
+#define BATTERY_ICON_WIDTH      (40u)  //!< Width of the battery icon in pixels
+#define BATTERY_ICON_HEIGHT     (15u)  //!< Height of the battery icon in pixels
+#define COLOR_INK             (WHITE)  //!< Color of the text/numbers
+#define COLOR_BG              (BLACK)  //!< Color of the background
+#define SEGMENTS_WIDTH          (32u)  //!< Width of a 7-segment number in pixels
 
 
 //--------------------------------------------------------------------------------------------------------/
@@ -48,7 +52,9 @@ typedef enum
   STATE_SET_YEAR,
   STATE_SET_MONTH,
   STATE_SET_DAY,
-  STATE_SET_WEEKDAY
+  STATE_SET_WEEKDAY,
+  //
+  NUMBEROF_STATE_SET_ELEMENTS
 } E_STATE_SET;
 
 
@@ -61,12 +67,18 @@ static RTC_TimeTypeDef gsTimeStructure;
 //! \brief Current date
 static RTC_DateTypeDef gsDateStructure;
 
+//! \brief Which parts of the clock should be displayed
+//! \note  Indexed by E_STATE_SET values
+static BOOL gabDisplayPartOn[ NUMBEROF_STATE_SET_ELEMENTS ];
+
 
 //--------------------------------------------------------------------------------------------------------/
 // Static function declarations
 //--------------------------------------------------------------------------------------------------------/
 static void RefreshDisplay( void );
 static void PrintBatteryLevel( U16 u16X, U16 u16Y );
+static void DrawSegment( BOOL bHorizontal, U16 u16X0, U16 u16Y0, U16 u16X1, U16 u16Y1, U16 u16Color );
+static void Draw7Segment( U8 u8Number, U16 u16X0, U16 u16Y0, U16 u16WidthPx, U16 u16Color );
 static void PrintClock( U16 u16X, U16 u16Y );
 static void PrintDate( U16 u16X, U16 u16Y );
 static void CheckButtons( void );
@@ -85,7 +97,7 @@ static void RefreshDisplay( void )
   // Display the battery level in the upper right corner
   PrintBatteryLevel( LCD_WIDTH - BATTERY_ICON_WIDTH - 1u, 0u );
   // Display clock in the middle of the screen
-  PrintClock( (LCD_WIDTH/2u)-(8u*16u/2u), (LCD_HEIGHT/2u)-(26u/2u) );
+  PrintClock( (LCD_WIDTH/2u)-(7*SEGMENTS_WIDTH/2u), (LCD_HEIGHT*0.6)-SEGMENTS_WIDTH );
   // Display the date in the upper left corner
   PrintDate( 0u, 0u );
 }
@@ -103,42 +115,146 @@ static void PrintBatteryLevel( U16 u16X, U16 u16Y )
   char acString[] = "Full";
   
   // Draw battery siluette
-  LCD_DrawLine( u16X, u16Y, u16X + BATTERY_ICON_WIDTH - 1u - 5u, u16Y, WHITE );  // up
-  LCD_DrawLine( u16X, u16Y + BATTERY_ICON_HEIGHT - 1u, u16X + BATTERY_ICON_WIDTH - 1u - 5u, u16Y + BATTERY_ICON_HEIGHT - 1u, WHITE );  // down
-  LCD_DrawLine( u16X, u16Y, u16X, u16Y + BATTERY_ICON_HEIGHT - 1u, WHITE );  // left
-  LCD_DrawLine( u16X + BATTERY_ICON_WIDTH - 1u - 5u, u16Y, u16X + BATTERY_ICON_WIDTH - 1u - 5u, u16Y + BATTERY_ICON_HEIGHT/4u, WHITE );  // right upper
-  LCD_DrawLine( u16X + BATTERY_ICON_WIDTH - 1u - 5u, u16Y + (BATTERY_ICON_HEIGHT*3u)/4u, u16X + BATTERY_ICON_WIDTH - 1u - 5u, u16Y + BATTERY_ICON_HEIGHT - 1u, WHITE );  // right lower
-  LCD_DrawLine( u16X + BATTERY_ICON_WIDTH - 1u - 5u, u16Y + BATTERY_ICON_HEIGHT/4u, u16X + BATTERY_ICON_WIDTH - 1u, u16Y + BATTERY_ICON_HEIGHT/4u, WHITE );  // right top
-  LCD_DrawLine( u16X + BATTERY_ICON_WIDTH - 1u - 5u, u16Y + (BATTERY_ICON_HEIGHT*3u)/4u, u16X + BATTERY_ICON_WIDTH - 1u, u16Y + (BATTERY_ICON_HEIGHT*3u)/4u, WHITE );  // right bottom
-  LCD_DrawLine( u16X + BATTERY_ICON_WIDTH - 1u, u16Y + BATTERY_ICON_HEIGHT/4u, u16X + BATTERY_ICON_WIDTH - 1u, u16Y + (BATTERY_ICON_HEIGHT*3u)/4u, WHITE );  // right
+  LCD_DrawLine( u16X, u16Y, u16X + BATTERY_ICON_WIDTH - 1u - 5u, u16Y, COLOR_INK );  // up
+  LCD_DrawLine( u16X, u16Y + BATTERY_ICON_HEIGHT - 1u, u16X + BATTERY_ICON_WIDTH - 1u - 5u, u16Y + BATTERY_ICON_HEIGHT - 1u, COLOR_INK );  // down
+  LCD_DrawLine( u16X, u16Y, u16X, u16Y + BATTERY_ICON_HEIGHT - 1u, COLOR_INK );  // left
+  LCD_DrawLine( u16X + BATTERY_ICON_WIDTH - 1u - 5u, u16Y, u16X + BATTERY_ICON_WIDTH - 1u - 5u, u16Y + BATTERY_ICON_HEIGHT/4u, COLOR_INK );  // right upper
+  LCD_DrawLine( u16X + BATTERY_ICON_WIDTH - 1u - 5u, u16Y + (BATTERY_ICON_HEIGHT*3u)/4u, u16X + BATTERY_ICON_WIDTH - 1u - 5u, u16Y + BATTERY_ICON_HEIGHT - 1u, COLOR_INK );  // right lower
+  LCD_DrawLine( u16X + BATTERY_ICON_WIDTH - 1u - 5u, u16Y + BATTERY_ICON_HEIGHT/4u, u16X + BATTERY_ICON_WIDTH - 1u, u16Y + BATTERY_ICON_HEIGHT/4u, COLOR_INK );  // right top
+  LCD_DrawLine( u16X + BATTERY_ICON_WIDTH - 1u - 5u, u16Y + (BATTERY_ICON_HEIGHT*3u)/4u, u16X + BATTERY_ICON_WIDTH - 1u, u16Y + (BATTERY_ICON_HEIGHT*3u)/4u, COLOR_INK );  // right bottom
+  LCD_DrawLine( u16X + BATTERY_ICON_WIDTH - 1u, u16Y + BATTERY_ICON_HEIGHT/4u, u16X + BATTERY_ICON_WIDTH - 1u, u16Y + (BATTERY_ICON_HEIGHT*3u)/4u, COLOR_INK );  // right
   
   // If USB power is not connected...
   if( CHARGER_STATE_NONE == eChargerState )
   {
     // Fill battery siluette according to the charge level
     LCD_DrawFilledRectangle( u16X + 1u, u16Y + 1u, u16X + 1u + (BATTERY_ICON_WIDTH - 3u - 5u)*((U32)u8ChargeLevelPercent)/100u, u16Y + BATTERY_ICON_HEIGHT - 2u, GREEN );
-    LCD_DrawFilledRectangle( u16X + 1u + (BATTERY_ICON_WIDTH - 2u - 5u)*((U32)u8ChargeLevelPercent)/100u, u16Y + 1u, u16X + BATTERY_ICON_WIDTH - 2u - 5u, u16Y + BATTERY_ICON_HEIGHT - 2u, BLACK );
+    LCD_DrawFilledRectangle( u16X + 1u + (BATTERY_ICON_WIDTH - 2u - 5u)*((U32)u8ChargeLevelPercent)/100u, u16Y + 1u, u16X + BATTERY_ICON_WIDTH - 2u - 5u, u16Y + BATTERY_ICON_HEIGHT - 2u, COLOR_BG );
     
     // Print percentage
     snprintf( acString, sizeof( acString ), "%02u", u8ChargeLevelPercent );
-    LCD_PrintString( u16X + BATTERY_ICON_WIDTH/2u - 10u, u16Y + BATTERY_ICON_HEIGHT/2u - 4u, acString, LCD_FONT_7x10, WHITE, BLACK );
+    LCD_PrintString( u16X + BATTERY_ICON_WIDTH/2u - 10u, u16Y + BATTERY_ICON_HEIGHT/2u - 4u, acString, LCD_FONT_7x10, COLOR_INK, COLOR_BG );
   }
   else if( CHARGER_STATE_CHARGING == eChargerState )  // charging in progress
   {
     // Clear battery siluette
-    LCD_DrawFilledRectangle( u16X + 1u, u16Y + 1u, u16X + (BATTERY_ICON_WIDTH - 2u - 5u), u16Y + BATTERY_ICON_HEIGHT - 2u, BLACK );
+    LCD_DrawFilledRectangle( u16X + 1u, u16Y + 1u, u16X + (BATTERY_ICON_WIDTH - 2u - 5u), u16Y + BATTERY_ICON_HEIGHT - 2u, COLOR_BG );
     // Write "++" into siluette
     snprintf( acString, sizeof( acString ), "++" );
-    LCD_PrintString( u16X + BATTERY_ICON_WIDTH/2u - 10u, u16Y + BATTERY_ICON_HEIGHT/2u - 4u, acString, LCD_FONT_7x10, WHITE, BLACK );
+    LCD_PrintString( u16X + BATTERY_ICON_WIDTH/2u - 10u, u16Y + BATTERY_ICON_HEIGHT/2u - 4u, acString, LCD_FONT_7x10, COLOR_INK, COLOR_BG );
   }
   else  // fully charged
   {
     // Fill battery siluette
-    LCD_DrawFilledRectangle( u16X + 1u, u16Y + 1u, u16X + (BATTERY_ICON_WIDTH - 2u - 5u), u16Y + BATTERY_ICON_HEIGHT - 2u, WHITE );
+    LCD_DrawFilledRectangle( u16X + 1u, u16Y + 1u, u16X + (BATTERY_ICON_WIDTH - 2u - 5u), u16Y + BATTERY_ICON_HEIGHT - 2u, COLOR_INK );
     // Write "Full" into siluette
     snprintf( acString, sizeof( acString ), "Full" );
-    LCD_PrintString( u16X + BATTERY_ICON_WIDTH/2u - 17u, u16Y + BATTERY_ICON_HEIGHT/2u - 4u, acString, LCD_FONT_7x10, BLACK, WHITE );
+    LCD_PrintString( u16X + BATTERY_ICON_WIDTH/2u - 17u, u16Y + BATTERY_ICON_HEIGHT/2u - 4u, acString, LCD_FONT_7x10, COLOR_BG, COLOR_INK );
   }
+}
+
+/*! *******************************************************************
+ * \brief  Draws a segment of a 7-segment display to a given position
+ * \param  bHorizontal: the segment is horizontal, or not
+ * \param  u16X0: horizontal coordinate of the upper left corner
+ * \param  u16Y0: vertical coordinate of the upper left corner
+ * \param  u16X1: horizontal coordinate of the lower right corner
+ * \param  u16Y1: vertical coordinate of the lower right corner
+ * \param  u16Color: color of the segment to be drawn
+ * \return -
+ *********************************************************************/
+static void DrawSegment( BOOL bHorizontal, U16 u16X0, U16 u16Y0, U16 u16X1, U16 u16Y1, U16 u16Color )
+{
+  U16 u16Temp;
+
+  // NOTE: A segment is made up from 3 parts: a rectangle and two triangles at each end.
+  //       The triangle has the same height as the width of the rectangle.
+  if( u16X1 < u16X0 )
+  {
+    u16Temp = u16X0;
+    u16X0 = u16X1;
+    u16X1 = u16Temp;
+  }
+  if( u16Y1 < u16Y0 )
+  {
+    u16Temp = u16Y0;
+    u16Y0 = u16Y1;
+    u16Y1 = u16Temp;
+  }
+  // If vertical segment
+  if( FALSE == bHorizontal )
+  {
+    // Draw rectangle part
+    LCD_DrawFilledRectangle( u16X0, u16Y0+(u16X1-u16X0)/2u, u16X1, u16Y1-(u16X1-u16X0)/2u, u16Color );
+    // Draw upper triangle
+    LCD_DrawFilledTriangle( (u16X0 + u16X1)>>1u, u16Y0, u16X0, u16Y0+(u16X1-u16X0)/2u, u16X1, u16Y0+(u16X1-u16X0)/2u, u16Color );
+    // Draw lower triangle
+    LCD_DrawFilledTriangle( u16X0, u16Y1-(u16X1-u16X0)/2u, u16X1, u16Y1-(u16X1-u16X0)/2u, (u16X0 + u16X1)>>1u, u16Y1, u16Color );
+  }
+  else  // horizontal segment
+  {
+    // Draw rectangle part
+    LCD_DrawFilledRectangle( u16X0+(u16Y1-u16Y0)/2u, u16Y0, u16X1-(u16Y1-u16Y0)/2u, u16Y1, u16Color );
+    // Draw left triangle
+    LCD_DrawFilledTriangle( u16X0, (u16Y0 + u16Y1)>>1u, u16X0+(u16Y1-u16Y0)/2u, u16Y0, u16X0+(u16Y1-u16Y0)/2u, u16Y1, u16Color );
+    // Draw right triangle
+    LCD_DrawFilledTriangle( u16X1, (u16Y0 + u16Y1)>>1u, u16X1-(u16Y1-u16Y0)/2u, u16Y0, u16X1-(u16Y1-u16Y0)/2u, u16Y1, u16Color );
+  }
+}
+
+/*! *******************************************************************
+ * \brief  Draws a number in 7-segment style to a given position
+ * \param  u8Number: number to be displayed
+ * \param  u16X0: horizontal coordinate of the upper left corner
+ * \param  u16Y0: vertical coordinate of the upper left corner
+ * \param  u16WidthPx: width of the number in pixels
+ * \param  u16Color: color of the number
+ * \return -
+ *********************************************************************/
+static void Draw7Segment( U8 u8Number, U16 u16X0, U16 u16Y0, U16 u16WidthPx, U16 u16Color )
+{
+  /* Note: Segments are encoded in the following way:
+   *
+   * +--B--+
+   * |     |
+   * A     C
+   * |     |
+   * +--G--+
+   * |     |
+   * F     D
+   * |     |
+   * +--E--+
+   *
+   * where the bits are ABCDEFG
+   */
+  static const U8 cau8Segments[ 10u ] =
+  {
+    0x7Eu,  // 0
+    0x18u,  // 1
+    0x37u,  // 2
+    0x3Du,  // 3
+    0x59u,  // 4
+    0x6Du,  // 5
+    0x6Fu,  // 6
+    0x38u,  // 7
+    0x7Fu,  // 8
+    0x7Du   // 9
+  };
+
+  // Draw segment A
+  if( 0u != (cau8Segments[ u8Number ] & 0x40u ) ) DrawSegment( FALSE, u16X0, u16Y0, u16X0+u16WidthPx/4u, u16Y0+u16WidthPx, u16Color );
+  // Draw segment B
+  if( 0u != (cau8Segments[ u8Number ] & 0x20u ) ) DrawSegment( TRUE, u16X0, u16Y0, u16X0+u16WidthPx, u16Y0+u16WidthPx/4u, u16Color );
+  // Draw segment C
+  if( 0u != (cau8Segments[ u8Number ] & 0x10u ) ) DrawSegment( FALSE, u16X0+u16WidthPx-u16WidthPx/4u, u16Y0, u16X0+u16WidthPx, u16Y0+u16WidthPx, u16Color );
+  // Draw segment D
+  if( 0u != (cau8Segments[ u8Number ] & 0x08u ) ) DrawSegment( FALSE, u16X0+u16WidthPx-u16WidthPx/4u, u16Y0+u16WidthPx, u16X0+u16WidthPx, u16Y0+u16WidthPx*2u, u16Color );
+  // Draw segment E
+  if( 0u != (cau8Segments[ u8Number ] & 0x04u ) ) DrawSegment( TRUE, u16X0, u16Y0+u16WidthPx*2u-u16WidthPx/4u, u16X0+u16WidthPx, u16Y0+u16WidthPx*2u, u16Color );
+  // Draw segment F
+  if( 0u != (cau8Segments[ u8Number ] & 0x02u ) ) DrawSegment( FALSE, u16X0, u16Y0+u16WidthPx, u16X0+u16WidthPx/4u, u16Y0+u16WidthPx*2u, u16Color );
+  // Draw segment G
+  if( 0u != (cau8Segments[ u8Number ] & 0x01u ) ) DrawSegment( TRUE, u16X0, u16Y0+u16WidthPx-u16WidthPx/8u, u16X0+u16WidthPx, u16Y0+u16WidthPx+u16WidthPx/8u, u16Color );
 }
 
 /*! *******************************************************************
@@ -149,11 +265,30 @@ static void PrintBatteryLevel( U16 u16X, U16 u16Y )
  *********************************************************************/
 static void PrintClock( U16 u16X, U16 u16Y )
 {
-  char acString[] = "00:00:00";
-  
-  // Display time format : hh:mm:ss
-  snprintf( acString,sizeof( acString ),"%02u:%02u:%02u",gsTimeStructure.Hours, gsTimeStructure.Minutes, gsTimeStructure.Seconds );
-  LCD_PrintString( u16X, u16Y, acString, LCD_FONT_16x26, WHITE, BLACK );
+  // Clear display
+  LCD_DrawFilledRectangle( u16X, u16Y, u16X+SEGMENTS_WIDTH*6.6, u16Y+2*SEGMENTS_WIDTH, COLOR_BG );
+
+  // Draw hours
+  if( TRUE == gabDisplayPartOn[ STATE_SET_HOUR ] )
+  {
+    Draw7Segment( gsTimeStructure.Hours/10u, u16X, u16Y, SEGMENTS_WIDTH, COLOR_INK );
+    Draw7Segment( gsTimeStructure.Hours%10u, u16X+SEGMENTS_WIDTH*1.2, u16Y, SEGMENTS_WIDTH, COLOR_INK );
+  }
+  // Draw separator
+  LCD_DrawFilledRectangle( u16X+SEGMENTS_WIDTH*2.4, u16Y+SEGMENTS_WIDTH*0.45, u16X+SEGMENTS_WIDTH*2.5, u16Y+SEGMENTS_WIDTH*0.55, COLOR_INK );
+  LCD_DrawFilledRectangle( u16X+SEGMENTS_WIDTH*2.4, u16Y+SEGMENTS_WIDTH*1.45, u16X+SEGMENTS_WIDTH*2.5, u16Y+SEGMENTS_WIDTH*1.55, COLOR_INK );
+  // Draw minutes
+  if( TRUE == gabDisplayPartOn[ STATE_SET_MINUTES ] )
+  {
+    Draw7Segment( gsTimeStructure.Minutes/10u, u16X+SEGMENTS_WIDTH*2.7, u16Y, SEGMENTS_WIDTH, COLOR_INK );
+    Draw7Segment( gsTimeStructure.Minutes%10u, u16X+SEGMENTS_WIDTH*3.9, u16Y, SEGMENTS_WIDTH, COLOR_INK );
+  }
+  // Draw seconds
+  if( TRUE == gabDisplayPartOn[ STATE_SET_SECONDS ] )
+  {
+    Draw7Segment( gsTimeStructure.Seconds/10u, u16X+SEGMENTS_WIDTH*5.4, u16Y+SEGMENTS_WIDTH, SEGMENTS_WIDTH/2, COLOR_INK );
+    Draw7Segment( gsTimeStructure.Seconds%10u, u16X+SEGMENTS_WIDTH*6.1, u16Y+SEGMENTS_WIDTH, SEGMENTS_WIDTH/2, COLOR_INK );
+  }
 }
 
 /*! *******************************************************************
@@ -164,7 +299,7 @@ static void PrintClock( U16 u16X, U16 u16Y )
  *********************************************************************/
 static void PrintDate( U16 u16X, U16 u16Y )
 {
-  char acString[] = "2026:05:12 TUE";
+  char acString[] = "    -  -      ";
   const char cau8WeekDays[7u][4u] =
   {
     "MON",
@@ -176,8 +311,24 @@ static void PrintDate( U16 u16X, U16 u16Y )
     "SUN"
   };
   // Display time format: yyyy,mm,dd
-  snprintf( acString,sizeof( acString ),"%04u:%02u:%02u %3s",2000u+gsDateStructure.Year, gsDateStructure.Month, gsDateStructure.Date, cau8WeekDays[ gsDateStructure.WeekDay ] );
-  LCD_PrintString( u16X, u16Y, acString, LCD_FONT_11x18, WHITE, BLACK );
+  if( TRUE == gabDisplayPartOn[ STATE_SET_YEAR ] )
+  {
+    snprintf( &acString[0u], sizeof( acString ), "%04u-  -      ", 2000u+gsDateStructure.Year );
+  }
+  if( TRUE == gabDisplayPartOn[ STATE_SET_MONTH ] )
+  {
+    snprintf( &acString[5u], sizeof( acString )-5u, "%02u-      ", gsDateStructure.Month );
+  }
+  if( TRUE == gabDisplayPartOn[ STATE_SET_DAY ] )
+  {
+    snprintf( &acString[8u], sizeof( acString )-8u, "%02u    ", gsDateStructure.Date );
+  }
+  if( TRUE == gabDisplayPartOn[ STATE_SET_WEEKDAY ] )
+  {
+    snprintf( &acString[11u], sizeof( acString )-11u, "%3s", cau8WeekDays[ gsDateStructure.WeekDay ] );
+  }
+  //snprintf( acString,sizeof( acString ),"%04u,%02u,%02u %3s", 2000u+gsDateStructure.Year, gsDateStructure.Month, gsDateStructure.Date, cau8WeekDays[ gsDateStructure.WeekDay ] );
+  LCD_PrintString( u16X, u16Y, acString, LCD_FONT_11x18, COLOR_INK, COLOR_BG );
 }
 
 /*! *******************************************************************
@@ -207,11 +358,13 @@ static void CheckButtons( void )
     {
       if( eState < STATE_SET_WEEKDAY )
       {
+        gabDisplayPartOn[ (U8)eState ] = TRUE;
         eState++;
       }
       else  // everything is set
       {
         bSetTime = FALSE;
+        gabDisplayPartOn[ (U8)eState ] = TRUE;
         //TODO: short beep
       }
     }
@@ -325,42 +478,11 @@ static void CheckButtons( void )
     if( u32CurrentTick - u32BlinkTimer < 200u )
     {
       // Mask out the value
-      switch( eState )
-      {
-        case STATE_SET_HOUR:
-          //LCD_FONT_16x26
-          LCD_DrawFilledRectangle( (LCD_WIDTH/2u)-(8u*16u/2u), (LCD_HEIGHT/2u)-(26u/2u), (LCD_WIDTH/2u)-(8u*16u/2u) + 2u*16u, (LCD_HEIGHT/2u)-(26u/2u) + 26u, BLACK );
-          break;
-          
-        case STATE_SET_MINUTES:
-          LCD_DrawFilledRectangle( (LCD_WIDTH/2u)-(8u*16u/2u) + 3u*16, (LCD_HEIGHT/2u)-(26u/2u), (LCD_WIDTH/2u)-(8u*16u/2u) + 5u*16u, (LCD_HEIGHT/2u)-(26u/2u) + 26u, BLACK );
-          break;
-
-        case STATE_SET_SECONDS:
-          LCD_DrawFilledRectangle( (LCD_WIDTH/2u)-(8u*16u/2u) + 6u*16, (LCD_HEIGHT/2u)-(26u/2u), (LCD_WIDTH/2u)-(8u*16u/2u) + 8u*16u, (LCD_HEIGHT/2u)-(26u/2u) + 26u, BLACK );
-          break;
-
-        case STATE_SET_YEAR:
-          //LCD_FONT_11x18
-          LCD_DrawFilledRectangle( 0u + 0u*11u, 0u, 0u + 4u*11u, 18u, BLACK );
-          break;
-
-        case STATE_SET_MONTH:
-          LCD_DrawFilledRectangle( 0u + 5u*11u, 0u, 0u + 7u*11u, 18u, BLACK );
-          break;
-
-        case STATE_SET_DAY:
-          LCD_DrawFilledRectangle( 0u + 8u*11u, 0u, 0u + 10u*11u, 18u, BLACK );
-          break;
-          
-        case STATE_SET_WEEKDAY:
-          LCD_DrawFilledRectangle( 0u + 11u*11u, 0u, 0u + 14u*11u, 18u, BLACK );
-          break;
-          
-        default:
-          //TODO: error handler
-          break;
-      }
+      gabDisplayPartOn[ (U8)eState ] = FALSE;
+    }
+    else
+    {
+      gabDisplayPartOn[ (U8)eState ] = TRUE;
     }
   }
 
@@ -400,9 +522,17 @@ static void CheckButtons( void )
  *********************************************************************/
 void Task_Clock_Init( void )
 {
+  U8 u8Index;
+
   // Clear screen
-  LCD_Clear( BLACK );
+  LCD_Clear( COLOR_BG );
   
+  // All parts of the screen should be on
+  for( u8Index = 0u; u8Index < sizeof( gabDisplayPartOn )/sizeof( BOOL ); u8Index++ )
+  {
+    gabDisplayPartOn[ u8Index ] = TRUE;
+  }
+
   // We don't need the repeated press function for buttons
   Buttons_SetRepeatedPresses( FALSE );
 }
@@ -422,7 +552,8 @@ void Task_Clock_Cycle( void )
   HAL_RTC_GetDate( &hrtc, &gsDateStructure, RTC_FORMAT_BIN );
   
   // Refresh display content
-  if( HAL_GetTick() - u32Timer > 100u )
+  if( ( HAL_GetTick() - u32Timer > 100u )
+   && ( hdma_spi2_tx.Instance->CNDTR <= LCD_WIDTH*LCD_HEIGHT/3u ) )  // synchronization to the display DMA
   {
     u32Timer = HAL_GetTick();
     RefreshDisplay();

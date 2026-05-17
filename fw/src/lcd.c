@@ -425,6 +425,103 @@ void LCD_DrawFilledRectangle( U8 u8X0, U8 u8Y0, U8 u8X1, U8 u8Y1, U16 u16Color )
 }
 
 /*! *******************************************************************
+ * \brief  Draws a filled triangle on the screen
+ * \param  u8X0: horizontal coordinate of the first vertex
+ * \param  u8Y0: vertical coordinate of the first vertex
+ * \param  u8X1: horizontal coordinate of the second vertex
+ * \param  u8Y1: vertical coordinate of the second vertex
+ * \param  u8X2: horizontal coordinate of the third vertex
+ * \param  u8Y2: vertical coordinate of the third vertex
+ * \param  u16Color: color of the triangle to be drawn
+ * \return -
+ *********************************************************************/
+void LCD_DrawFilledTriangle( U8 u8X0, U8 u8Y0, U8 u8X1, U8 u8Y1, U8 u8X2, U8 u8Y2, U16 u16Color )
+{
+  U8 u8X, u8Y, u8Temp;
+  float fSlope1, fSlope2, fXstart, fXend, fTemp;
+
+  // Make sure that the first vertex is the uppermost
+  if( u8Y0 > u8Y1 )
+  {
+    u8Temp = u8Y0;
+    u8Y0 = u8Y1;
+    u8Y1 = u8Temp;
+    u8Temp = u8X0;
+    u8X0 = u8X1;
+    u8X1 = u8Temp;
+  }
+  if( u8Y0 > u8Y2 )
+  {
+    u8Temp = u8Y0;
+    u8Y0 = u8Y2;
+    u8Y2 = u8Temp;
+    u8Temp = u8X0;
+    u8X0 = u8X2;
+    u8X2 = u8Temp;
+  }
+  // Make the second vertex be the second uppermost
+  if( u8Y1 > u8Y2 )
+  {
+    u8Temp = u8Y1;
+    u8Y1 = u8Y2;
+    u8Y2 = u8Temp;
+    u8Temp = u8X1;
+    u8X1 = u8X2;
+    u8X2 = u8Temp;
+  }
+  // At this point, (X0,Y0) is the uppermost, followed by (X1,Y1), and (X2,Y2) is the lowermost
+  if( u8Y1 > u8Y0 )  // if there is an upper half triangle
+  {
+    fSlope1 = ((float)u8X1 - (float)u8X0) / ((float)u8Y1 - (float)u8Y0);
+    fSlope2 = ((float)u8X2 - (float)u8X0) / ((float)u8Y2 - (float)u8Y0);
+    if( fSlope1 > fSlope2 )
+    {
+      fTemp = fSlope1;
+      fSlope1 = fSlope2;
+      fSlope2 = fTemp;
+    }
+    fXstart = u8X0;
+    fXend = u8X0;
+    // Draw the upper half of the triangle, that is a flat bottom triangle
+    for( u8Y = u8Y0; u8Y <= u8Y1; u8Y++ )
+    {
+      for( u8X = fXstart; u8X <= fXend; u8X++ )
+      {
+        // Draw horizontal line
+        gau16LCDFrameBuffer[ u8Y*LCD_WIDTH + u8X ] = u16Color;
+      }
+      fXstart += fSlope1;
+      fXend += fSlope2;
+    }
+  }
+  // if there is a lower half triangle
+  if( u8Y2 > u8Y1 )
+  {
+    fSlope1 = ((float)u8X2 - (float)u8X0) / ((float)u8Y2 - (float)u8Y0);
+    fSlope2 = ((float)u8X2 - (float)u8X1) / ((float)u8Y2 - (float)u8Y1);
+    if( fSlope1 < fSlope2 )
+    {
+      fTemp = fSlope1;
+      fSlope1 = fSlope2;
+      fSlope2 = fTemp;
+    }
+    fXstart = u8X2;
+    fXend = u8X2;
+    // Draw the lower half of the triangle, that is a flat top triangle
+    for( u8Y = u8Y2; u8Y > u8Y1; u8Y-- )
+    {
+      for( u8X = fXstart; u8X <= fXend; u8X++ )
+      {
+        // Draw horizontal line
+        gau16LCDFrameBuffer[ u8Y*LCD_WIDTH + u8X ] = u16Color;
+      }
+      fXstart -= fSlope1;
+      fXend -= fSlope2;
+    }
+  }
+}
+
+/*! *******************************************************************
  * \brief  Replaces two colors with each other in a rectangle on the screen
  * \param  u8X0: origin X coordinate
  * \param  u8Y0: origin Y coordinate
