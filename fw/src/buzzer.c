@@ -39,6 +39,12 @@
 //--------------------------------------------------------------------------------------------------------/
 // Global variables
 //--------------------------------------------------------------------------------------------------------/
+//! \brief Timer for time-limited beeps
+static struct
+{
+  U32  u32TimerMs;       //!< Timer ms counter
+  BOOL bTimerIsRunning;  //!< Is the timer valid
+} gsBuzzerTimer;
 
 
 //--------------------------------------------------------------------------------------------------------/
@@ -66,11 +72,29 @@
  *********************************************************************/
 void Buzzer_Init( void )
 {
-  // Initialize timer
+  // Initialize timer peripherial
   HAL_TIMER_PERIPH.Init.Period = (U32)( CLOCK_FREQ_HZ/440u ) - 1u;
   HAL_TIM_PWM_Init( &HAL_TIMER_PERIPH );
   PWM_DUTY = 0u;
   HAL_TIM_PWM_Start( &HAL_TIMER_PERIPH, TIMER_CHANNEL );
+  // Init software timer
+  gsBuzzerTimer.bTimerIsRunning = FALSE;
+}
+
+/*! *******************************************************************
+ * \brief  Module main cycle
+ * \param  -
+ * \return -
+ *********************************************************************/
+void Buzzer_Cycle( void )
+{
+  // If the timer expired...
+  if( ( TRUE == gsBuzzerTimer.bTimerIsRunning )
+   && ( (I32)(gsBuzzerTimer.u32TimerMs - HAL_GetTick()) < 0 ) )
+  {
+    Buzzer_Silence();
+    gsBuzzerTimer.bTimerIsRunning = FALSE;
+  }
 }
 
 /*! *******************************************************************
@@ -79,7 +103,7 @@ void Buzzer_Init( void )
  * \param  u8DutyCycle: duty cycle (0..255)
  * \return -
  *********************************************************************/
-void Buzzer_Note( U32 u32FrequencyHz, uint8_t u8DutyCycle )
+void Buzzer_Note( U32 u32FrequencyHz, U8 u8DutyCycle )
 {
   U32 u32NewPeriod;
   
@@ -107,6 +131,20 @@ void Buzzer_Note( U32 u32FrequencyHz, uint8_t u8DutyCycle )
 void Buzzer_Silence( void )
 {
   PWM_DUTY = 0u;
+}
+
+/*! *******************************************************************
+ * \brief  Beep for a given time
+ * \param  u32FrequencyHz: frequency in Hz (min: 1)
+ * \param  u8DutyCycle: duty cycle (0..255)
+ * \param  u32DurationMs: beep duration in ms
+ * \return -
+ *********************************************************************/
+void Buzzer_Beep( U32 u32FrequencyHz, U8 u8DutyCycle, U32 u32DurationMs )
+{
+  Buzzer_Note( u32FrequencyHz, u8DutyCycle );
+  gsBuzzerTimer.u32TimerMs = HAL_GetTick() + u32DurationMs;
+  gsBuzzerTimer.bTimerIsRunning = TRUE;
 }
 
 

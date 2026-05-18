@@ -310,7 +310,7 @@ static void PrintDate( U16 u16X, U16 u16Y )
     "SAT",
     "SUN"
   };
-  // Display time format: yyyy,mm,dd
+  // Display time format: yyyy-mm-dd
   if( TRUE == gabDisplayPartOn[ STATE_SET_YEAR ] )
   {
     snprintf( &acString[0u], sizeof( acString ), "%04u-  -      ", 2000u+gsDateStructure.Year );
@@ -325,7 +325,7 @@ static void PrintDate( U16 u16X, U16 u16Y )
   }
   if( TRUE == gabDisplayPartOn[ STATE_SET_WEEKDAY ] )
   {
-    snprintf( &acString[11u], sizeof( acString )-11u, "%3s", cau8WeekDays[ gsDateStructure.WeekDay ] );
+    snprintf( &acString[11u], sizeof( acString )-11u, "%3s", cau8WeekDays[ gsDateStructure.WeekDay - 1u ] );
   }
   //snprintf( acString,sizeof( acString ),"%04u,%02u,%02u %3s", 2000u+gsDateStructure.Year, gsDateStructure.Month, gsDateStructure.Date, cau8WeekDays[ gsDateStructure.WeekDay ] );
   LCD_PrintString( u16X, u16Y, acString, LCD_FONT_11x18, COLOR_INK, COLOR_BG );
@@ -360,12 +360,13 @@ static void CheckButtons( void )
       {
         gabDisplayPartOn[ (U8)eState ] = TRUE;
         eState++;
+        Buzzer_Beep( 2700u, 128u, 50u );
       }
       else  // everything is set
       {
         bSetTime = FALSE;
         gabDisplayPartOn[ (U8)eState ] = TRUE;
-        //TODO: short beep
+        Buzzer_Beep( 3100u, 128u, 50u );
       }
     }
   }
@@ -380,7 +381,7 @@ static void CheckButtons( void )
   {
     bSetTime = TRUE;
     eState = STATE_SET_HOUR;
-    //TODO: short beep
+    Buzzer_Beep( 2700u, 128u, 50u );
   }
   
   // Bottom button: set
@@ -439,7 +440,7 @@ static void CheckButtons( void )
         gsDateStructure.WeekDay += 1u;
         gsDateStructure.Date += 1u;
       }
-      if( gsDateStructure.WeekDay >= 7u )
+      if( gsDateStructure.WeekDay > 7u )
       {
         gsDateStructure.WeekDay -= 7u;
       }

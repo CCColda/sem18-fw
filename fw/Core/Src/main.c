@@ -135,6 +135,7 @@ int main(void)
     /* USER CODE BEGIN 3 */
     // System tasks
     Housekeeping_Cycle();
+    Buzzer_Cycle();
     
     // Program tasks
     Tasks_Cycle();

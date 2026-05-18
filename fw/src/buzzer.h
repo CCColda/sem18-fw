@@ -39,11 +39,12 @@
 //--------------------------------------------------------------------------------------------------------/
 // System functions
 void Buzzer_Init( void );
+void Buzzer_Cycle( void );
 
 // API functions
-void Buzzer_Note( uint32_t u32FrequencyHz, uint8_t u8DutyCycle );
+void Buzzer_Note( U32 u32FrequencyHz, U8 u8DutyCycle );
 void Buzzer_Silence( void );
-
+void Buzzer_Beep( U32 u32FrequencyHz, U8 u8DutyCycle, U32 u32DurationMs );
 
 
 #endif  // BUZZER_H
