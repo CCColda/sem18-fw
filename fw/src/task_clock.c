@@ -424,6 +424,7 @@ static void CheckButtons( void )
             gsTimeStructure.Minutes += 1u;
           }
           gsTimeStructure.Seconds = 0u;
+          gsTimeStructure.SubSeconds = 0u;
           break;
 
         case STATE_SET_YEAR:
@@ -540,6 +541,7 @@ static void CheckButtons( void )
             gsTimeStructure.Minutes += 1u;
           }
           gsTimeStructure.Seconds = 0u;
+          gsTimeStructure.SubSeconds = 0u;
           break;
 
         case STATE_SET_YEAR:

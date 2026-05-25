@@ -17,6 +17,7 @@
 #include "main.h"
 #include "quadspi.h"
 #include "adc.h"
+#include "rtc.h"
 #include "types.h"
 
 // Own include
@@ -39,6 +40,12 @@
 //--------------------------------------------------------------------------------------------------------/
 //! \brief Voltage of the battery in Volts
 static float gfBatteryVoltage;
+
+//! \brief RTC calibration (how late it is) in ppm represented in BCD 7.1 format
+volatile U32 gu32HousekeepingRTCCalibrationLateppm;
+
+//! \brief RTC calibration (how fast it is) in ppm represented in BCD 7.1 format
+volatile U32 gu32HousekeepingRTCCalibrationFastppm;
 
 
 //--------------------------------------------------------------------------------------------------------/
@@ -72,8 +79,28 @@ static float gfBatteryVoltage;
  *********************************************************************/
 void Housekeeping_Init( void )
 {
+  U32 u32CalibrationReg;
   // Initialize global variables
   gfBatteryVoltage = 4.2f;
+  gu32HousekeepingRTCCalibrationLateppm = 0u;
+  gu32HousekeepingRTCCalibrationFastppm = 0u;
+
+  HAL_PWR_EnableBkUpAccess();
+  u32CalibrationReg = READ_REG( RTC->CALR );
+  HAL_PWR_DisableBkUpAccess();
+
+  if( RTC_CALR_CALP & u32CalibrationReg )
+  {
+    // Calculate value as 0.1ppm
+    gu32HousekeepingRTCCalibrationLateppm = ((512u - (u32CalibrationReg & 0x1FFu) )*312500u)/32768u;
+    gu32HousekeepingRTCCalibrationLateppm = Housekeeping_U322BCD( gu32HousekeepingRTCCalibrationLateppm );
+  }
+  else
+  {
+    // Calculate value as 0.1ppm
+    gu32HousekeepingRTCCalibrationFastppm = ((u32CalibrationReg & 0x1FFu)*312500u)/32768u;
+    gu32HousekeepingRTCCalibrationFastppm = Housekeeping_U322BCD( gu32HousekeepingRTCCalibrationFastppm );
+  }
 }
 
 /*! *******************************************************************
@@ -155,7 +182,7 @@ void Housekeeping_DeepSleep( void )
   
   // Refresh magic number before deep sleep
   HAL_PWR_EnableBkUpAccess();
-  WRITE_REG( RTC->BKP31R, RTC_BACKUP_MAGICNUMBER );
+  HAL_RTCEx_BKUPWrite( &hrtc, RTC_BKP_DR31, RTC_BACKUP_MAGICNUMBER );
   HAL_PWR_DisableBkUpAccess();
   
   // Enter deep sleep
@@ -181,16 +208,14 @@ BOOL Housekeeping_RTCCheckBkup( void )
   // Enable access to the backup registers
   HAL_PWR_EnableBkUpAccess();
   // If the RTC has been initialized before
-  if( RTC_BACKUP_MAGICNUMBER == READ_REG(RTC->BKP31R) )
+  if( RTC_BACKUP_MAGICNUMBER == HAL_RTCEx_BKUPRead( &hrtc, RTC_BKP_DR31 ) )
   {
      bRet = TRUE;  // don't reset the RTC
   }
   else  // Not initialized yet
   {
-    WRITE_REG( RTC->BKP31R, RTC_BACKUP_MAGICNUMBER );
+    HAL_RTCEx_BKUPWrite( &hrtc, RTC_BKP_DR31, RTC_BACKUP_MAGICNUMBER );
   }
-  // Disable access to avoid spurious writes
-  HAL_PWR_DisableBkUpAccess();
   return bRet;
 }
 
@@ -269,6 +294,95 @@ E_HOUSEKEEPING_CHARGERSTATE Housekeeping_GetChargerState( void )
 }
 
 /*! *******************************************************************
+ * \brief  Calibrate the clock assuming it's late
+ * \param  -
+ * \return -
+ *********************************************************************/
+void Housekeeping_RTCCalibrateLate( void )
+{
+  U32 u32Errorppm = Housekeeping_BCD2U32( gu32HousekeepingRTCCalibrationLateppm );  // in 0.1 ppm units
+  U32 u32ErrorPulses;
+
+  // If the error is zero, then do nothing
+  if( 0u == u32Errorppm ) return;
+
+  // Calculate error in clock cycles per 32 seconds (=2^20 cycles)
+  u32ErrorPulses = (u32Errorppm*32768u + (312500u/2u))/312500u;
+  u32ErrorPulses = 512u - u32ErrorPulses;
+  HAL_RTCEx_SetSmoothCalib( &hrtc, RTC_SMOOTHCALIB_PERIOD_32SEC, RTC_SMOOTHCALIB_PLUSPULSES_SET, u32ErrorPulses );
+}
+
+/*! *******************************************************************
+ * \brief  Calibrate the clock assuming it's fast
+ * \param  -
+ * \return -
+ *********************************************************************/
+void Housekeeping_RTCCalibrateFast( void )
+{
+  U32 u32Errorppm = Housekeeping_BCD2U32( gu32HousekeepingRTCCalibrationFastppm );  // in 0.1 ppm units
+  U32 u32ErrorPulses;
+
+  // If the error is zero, then do nothing
+  if( 0u == u32Errorppm ) return;
+
+  // Calculate error in clock cycles per 32 seconds (=2^20 cycles)
+  u32ErrorPulses = (u32Errorppm*32768u + (312500u/2u))/312500u;
+  HAL_RTCEx_SetSmoothCalib( &hrtc, RTC_SMOOTHCALIB_PERIOD_32SEC, RTC_SMOOTHCALIB_PLUSPULSES_RESET, u32ErrorPulses );
+}
+
+/*! *******************************************************************
+ * \brief  Convert BCD number to U32
+ * \param  u32BCD: BCD number
+ * \return Number in base-2
+ *********************************************************************/
+U32 Housekeeping_BCD2U32( U32 u32BCD )
+{
+  U32 u32Index;
+  U32 u32Result = 0u;
+  U32 u32Multiplier = 1u;
+  U8  u8Nibble;
+
+  // Going through the nibbles
+  for( u32Index = 0u; u32Index < 8u; u32Index++ )
+  {
+    u8Nibble = ( u32BCD & (0x0Fu<<(u32Index*4u)) )>>(u32Index*4u);
+    if( u8Nibble > 10u )
+    {
+      //TODO: error handling
+      //ErrorHandler_Fatal( __FILE__, __LINE__, u32BCD, 0u, 0u );
+      return 0u;
+    }
+    else
+    {
+      u32Result += u32Multiplier*u8Nibble;
+    }
+    u32Multiplier *= 10u;
+  }
+
+  return u32Result;
+}
+
+/*! *******************************************************************
+ * \brief  Convert U32 number to BCD
+ * \param  u32Number: number in base-2
+ * \return Number in BCD format
+ *********************************************************************/
+U32 Housekeeping_U322BCD( U32 u32Number )
+{
+  U32 u32BCD = 0u;
+  U32 u32Index;
+
+  // Going through the nibbles
+  for( u32Index = 0u; u32Index < 8u; u32Index++ )
+  {
+    u32BCD += ( ( u32Number % 10u ) << ( u32Index * 4u) );
+    u32Number /= 10u;
+  }
+
+  return u32BCD;
+}
+
+/*! *******************************************************************
  * \brief
  * \param
  * \return
@@ -279,5 +393,6 @@ E_HOUSEKEEPING_CHARGERSTATE Housekeeping_GetChargerState( void )
  * \param
  * \return
  *********************************************************************/
+
 
 //-----------------------------------------------< EOF >--------------------------------------------------/

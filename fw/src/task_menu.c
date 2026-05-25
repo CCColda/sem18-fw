@@ -20,6 +20,7 @@
 #include "types.h"
 #include "lcd.h"
 #include "buttons.h"
+#include "housekeeping.h"
 #include "tasks.h"
 #include "task_clock.h"
 #include "task_tetris.h"
@@ -62,6 +63,52 @@ static const S_MENU gsMainMenu;
 
 //NOTE: put submenus here
 
+//! \brief Structure containing the clock calibration menu
+static const S_MENU gsCalibrateClockMenu =
+{
+  3u,    // Number of items
+  NULL,  // When entering
+  NULL,  // When exiting
+  {
+    {
+      .pu8ItemString = ">> Go back <<",
+      .bSelectable = TRUE,
+      .eAction = MENU_ACTION_SUBMENU,
+      .pAction = &gsMainMenu
+    },
+    {
+      .pu8ItemString = "The clock is late...",
+      .bSelectable = TRUE,
+      .eAction = MENU_ACTION_WIDGET_NUMSET,
+      .pAction = &(S_MENU_WIDGET_NUMSET)
+      {
+        .pu8WidgetString = "Enter inaccuracy\nin ppm",
+        .pu32NumberToChange = &gu32HousekeepingRTCCalibrationLateppm,
+        .bDecimal = TRUE,   // BCD
+        .u32FixPoint = 1u,  // 7.1 format
+        .u32Min = 0x0000u,  // 0 ppm
+        .u32Max = 0x4871u,  // 487.1 ppm
+        .pfExitWidgetAction = Housekeeping_RTCCalibrateLate
+      }
+    },
+    {
+      .pu8ItemString = "The clock is fast...",
+      .bSelectable = TRUE,
+      .eAction = MENU_ACTION_WIDGET_NUMSET,
+      .pAction = &(S_MENU_WIDGET_NUMSET)
+      {
+        .pu8WidgetString = "Enter inaccuracy\nin ppm",
+        .pu32NumberToChange = &gu32HousekeepingRTCCalibrationFastppm,
+        .bDecimal = TRUE,   // BCD
+        .u32FixPoint = 1u,  // 7.1 format
+        .u32Min = 0x0000u,  // 0 ppm
+        .u32Max = 0x4885u,  // 488.5 ppm
+        .pfExitWidgetAction = Housekeeping_RTCCalibrateFast
+      }
+    },
+  }
+};
+
 //! \brief Structure containing the main (root) menu
 static const S_MENU gsMainMenu =
 {
@@ -90,6 +137,13 @@ static const S_MENU gsMainMenu =
       }
     },
     {
+      .pu8ItemString = "Calibrate clock",
+      .bSelectable = TRUE,
+      .eAction = MENU_ACTION_SUBMENU,
+      .pAction = &gsCalibrateClockMenu
+    },
+    /*
+    {
       .pu8ItemString = "Connect as USB drive",
       .bSelectable = TRUE,
       .eAction = MENU_ACTION_WIDGET_FUNCTION,
@@ -102,6 +156,7 @@ static const S_MENU gsMainMenu =
         .pfnActionOnExit = NULL//TUSB_IF_DisableMSD
       }
     },
+    */
   }
 };
 

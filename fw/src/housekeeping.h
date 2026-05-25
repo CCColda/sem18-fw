@@ -39,6 +39,8 @@ typedef enum
 //--------------------------------------------------------------------------------------------------------/
 // Global variables
 //--------------------------------------------------------------------------------------------------------/
+extern volatile U32 gu32HousekeepingRTCCalibrationLateppm;
+extern volatile U32 gu32HousekeepingRTCCalibrationFastppm;
 
 
 //--------------------------------------------------------------------------------------------------------/
@@ -50,10 +52,14 @@ void Housekeeping_Cycle( void );
 BOOL Housekeeping_RTCCheckBkup( void );
 
 // API functions
+void Housekeeping_RTCCalibrateLate( void );
+void Housekeeping_RTCCalibrateFast( void );
 void Housekeeping_DeepSleep( void );
 float Housekeeping_GetBatteryVoltage( void );
 U8 Housekeeping_GetBatteryPercentage( void );
 E_HOUSEKEEPING_CHARGERSTATE Housekeeping_GetChargerState( void );
+U32 Housekeeping_BCD2U32( U32 u32BCD );
+U32 Housekeeping_U322BCD( U32 u32Number );
 
 
 #endif  // HOUSEKEEPING_H

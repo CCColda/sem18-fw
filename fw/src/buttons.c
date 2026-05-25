@@ -28,7 +28,7 @@
 //--------------------------------------------------------------------------------------------------------/
 #define BOUNCE_PERIOD_MS      (50u)  //!< Button bounce time period in msec
 #define REPEAT_WAIT_MS       (400u)  //!< Time before repetition starts in msec
-#define REPEAT_MS             (50u)  //!< Time between two repetitions in msec
+#define REPEAT_MS            (200u)  //!< Time between two repetitions in msec
 
 
 //--------------------------------------------------------------------------------------------------------/
