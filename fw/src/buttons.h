@@ -74,7 +74,7 @@ void Buttons_TimerIT( void );
 
 // API functions
 E_BUTTONS_EVENT Buttons_GetEvent( E_BUTTONS_INDEX eButton );
-void Buttons_SetRepeatedPresses( BOOL bSet );
+void Buttons_SetRepeatedPresses( E_BUTTONS_INDEX eButton, BOOL bSet );
 
 
 #endif  // BUTTONS_H

@@ -53,6 +53,7 @@ typedef enum
   STATE_SET_MONTH,
   STATE_SET_DAY,
   STATE_SET_WEEKDAY,
+  STATE_SET_DST,
   //
   NUMBEROF_STATE_SET_ELEMENTS
 } E_STATE_SET;
@@ -66,6 +67,9 @@ static RTC_TimeTypeDef gsTimeStructure;
 
 //! \brief Current date
 static RTC_DateTypeDef gsDateStructure;
+
+//! \brief Is it daylight saving time or not
+static BOOL gbDaylightSavingTime;
 
 //! \brief Which parts of the clock should be displayed
 //! \note  Indexed by E_STATE_SET values
@@ -289,6 +293,15 @@ static void PrintClock( U16 u16X, U16 u16Y )
     Draw7Segment( gsTimeStructure.Seconds/10u, u16X+SEGMENTS_WIDTH*5.4, u16Y+SEGMENTS_WIDTH, SEGMENTS_WIDTH/2, COLOR_INK );
     Draw7Segment( gsTimeStructure.Seconds%10u, u16X+SEGMENTS_WIDTH*6.1, u16Y+SEGMENTS_WIDTH, SEGMENTS_WIDTH/2, COLOR_INK );
   }
+  // Draw Daylight Saving Time (DST)
+  if( ( ( TRUE == gabDisplayPartOn[ STATE_SET_DST ] )
+     && ( TRUE == gbDaylightSavingTime ) )
+   || ( ( FALSE == gabDisplayPartOn[ STATE_SET_DST ] )
+       && ( FALSE == gbDaylightSavingTime ) ) )
+  {
+    // Print "DST" over the seconds display
+    LCD_PrintString( u16X+SEGMENTS_WIDTH*5.5, u16Y, "DST", LCD_FONT_11x18, COLOR_INK, COLOR_BG );
+  }
 }
 
 /*! *******************************************************************
@@ -327,7 +340,6 @@ static void PrintDate( U16 u16X, U16 u16Y )
   {
     snprintf( &acString[11u], sizeof( acString )-11u, "%3s", cau8WeekDays[ gsDateStructure.WeekDay - 1u ] );
   }
-  //snprintf( acString,sizeof( acString ),"%04u,%02u,%02u %3s", 2000u+gsDateStructure.Year, gsDateStructure.Month, gsDateStructure.Date, cau8WeekDays[ gsDateStructure.WeekDay ] );
   LCD_PrintString( u16X, u16Y, acString, LCD_FONT_11x18, COLOR_INK, COLOR_BG );
 }
 
@@ -343,6 +355,7 @@ static void CheckButtons( void )
   static BOOL bSetTime = FALSE;
   static E_STATE_SET eState = STATE_SET_HOUR;
   E_BUTTONS_EVENT eButtonTop = Buttons_GetEvent( BUTTON_SW1 );
+  E_BUTTONS_EVENT eButtonMiddle = Buttons_GetEvent( BUTTON_SW3 );
   E_BUTTONS_EVENT eButtonBottom = Buttons_GetEvent( BUTTON_SW2 );
   U32 u32CurrentTick = HAL_GetTick();
   
@@ -356,7 +369,7 @@ static void CheckButtons( void )
     }
     else  // we're setting the time and date
     {
-      if( eState < STATE_SET_WEEKDAY )
+      if( eState < STATE_SET_DST )
       {
         gabDisplayPartOn[ (U8)eState ] = TRUE;
         eState++;
@@ -367,6 +380,8 @@ static void CheckButtons( void )
         bSetTime = FALSE;
         gabDisplayPartOn[ (U8)eState ] = TRUE;
         Buzzer_Beep( 3100u, 128u, 50u );
+        Buttons_SetRepeatedPresses( BUTTON_SW2, FALSE );
+        Buttons_SetRepeatedPresses( BUTTON_SW3, FALSE );
       }
     }
   }
@@ -379,9 +394,12 @@ static void CheckButtons( void )
    && ( FALSE == bSetTime )
    && ( u32CurrentTick - u32Timer > 1000u ) )
   {
+    // Enter time setting state
     bSetTime = TRUE;
     eState = STATE_SET_HOUR;
     Buzzer_Beep( 2700u, 128u, 50u );
+    Buttons_SetRepeatedPresses( BUTTON_SW2, TRUE );
+    Buttons_SetRepeatedPresses( BUTTON_SW3, TRUE );
   }
   
   // Bottom button: set
@@ -401,11 +419,11 @@ static void CheckButtons( void )
           break;
 
         case STATE_SET_SECONDS:
-          gsTimeStructure.Seconds = 0u;
           if( gsTimeStructure.Seconds >= 30u )
           {
             gsTimeStructure.Minutes += 1u;
           }
+          gsTimeStructure.Seconds = 0u;
           break;
 
         case STATE_SET_YEAR:
@@ -423,7 +441,19 @@ static void CheckButtons( void )
         case STATE_SET_WEEKDAY:
           gsDateStructure.WeekDay += 1u;
           break;
-          
+
+        case STATE_SET_DST:
+          gbDaylightSavingTime = (TRUE == gbDaylightSavingTime) ? FALSE : TRUE;
+          if( TRUE == gbDaylightSavingTime )
+          {
+            gsTimeStructure.DayLightSaving = RTC_CR_ADD1H | RTC_CR_BKP;
+          }
+          else
+          {
+            gsTimeStructure.DayLightSaving = RTC_CR_SUB1H;
+          }
+          break;
+
         default:
           //TODO: error handler
           break;
@@ -459,6 +489,7 @@ static void CheckButtons( void )
       HAL_PWR_EnableBkUpAccess();
       __HAL_RTC_WRITEPROTECTION_DISABLE(&hrtc);
       HAL_RTC_SetTime( &hrtc, &gsTimeStructure, RTC_FORMAT_BIN );
+      HAL_Delay( 5u );
       HAL_RTC_SetDate( &hrtc, &gsDateStructure, RTC_FORMAT_BIN );
       __HAL_RTC_WRITEPROTECTION_ENABLE(&hrtc);
       HAL_PWR_DisableBkUpAccess();
@@ -487,10 +518,103 @@ static void CheckButtons( void )
     }
   }
 
-  // Middle button: deep sleep
-  if( BUTTON_PRESSED == Buttons_GetEvent( BUTTON_SW3 ) )
+  // Middle button
+  if( BUTTON_PRESSED == eButtonMiddle )
   {
-    Housekeeping_DeepSleep();
+    // If we're setting the time and date
+    if( TRUE == bSetTime )
+    {
+      switch( eState )
+      {
+        case STATE_SET_HOUR:
+          gsTimeStructure.Hours -= 1u;
+          break;
+
+        case STATE_SET_MINUTES:
+          gsTimeStructure.Minutes -= 1u;
+          break;
+
+        case STATE_SET_SECONDS:
+          if( gsTimeStructure.Seconds >= 30u )
+          {
+            gsTimeStructure.Minutes += 1u;
+          }
+          gsTimeStructure.Seconds = 0u;
+          break;
+
+        case STATE_SET_YEAR:
+          gsDateStructure.Year -= 1u;
+          break;
+
+        case STATE_SET_MONTH:
+          gsDateStructure.Month -= 1u;
+          break;
+
+        case STATE_SET_DAY:
+          gsDateStructure.Date -= 1u;
+          break;
+
+        case STATE_SET_WEEKDAY:
+          gsDateStructure.WeekDay -= 1u;
+          break;
+
+        case STATE_SET_DST:
+          gbDaylightSavingTime = (TRUE == gbDaylightSavingTime) ? FALSE : TRUE;
+          if( TRUE == gbDaylightSavingTime )
+          {
+            gsTimeStructure.DayLightSaving = RTC_CR_ADD1H | RTC_CR_BKP;
+          }
+          else
+          {
+            gsTimeStructure.DayLightSaving = RTC_CR_SUB1H;
+          }
+          break;
+
+        default:
+          //TODO: error handler
+          break;
+      }
+      //Check for validity and adjust format
+      if( gsTimeStructure.Minutes >= 60u )
+      {
+        gsTimeStructure.Minutes += 60u;
+        gsTimeStructure.Hours -= 1u;
+      }
+      if( gsTimeStructure.Hours >= 24u )
+      {
+        gsTimeStructure.Hours += 24u;
+        gsDateStructure.WeekDay -= 1u;
+        gsDateStructure.Date -= 1u;
+      }
+      if( gsDateStructure.WeekDay > 7u )
+      {
+        gsDateStructure.WeekDay += 7u;
+      }
+#warning "FIXME: is this the right way?"
+      if( gsDateStructure.Date >= 31u )
+      {
+        gsDateStructure.Date += 31u;
+        gsDateStructure.Month -= 1u;
+      }
+      if( gsDateStructure.Month >= 12u )
+      {
+        gsDateStructure.Month += 12u;
+        gsDateStructure.Year -= 1u;
+      }
+      // Update the time/date
+      HAL_PWR_EnableBkUpAccess();
+      __HAL_RTC_WRITEPROTECTION_DISABLE(&hrtc);
+      HAL_RTC_SetTime( &hrtc, &gsTimeStructure, RTC_FORMAT_BIN );
+      HAL_Delay( 5u );
+      HAL_RTC_SetDate( &hrtc, &gsDateStructure, RTC_FORMAT_BIN );
+      __HAL_RTC_WRITEPROTECTION_ENABLE(&hrtc);
+      HAL_PWR_DisableBkUpAccess();
+    }
+    else
+    {
+      // Enter deep sleep
+      Housekeeping_DeepSleep();
+    }
   }
 
   // Joystick push: go to the menu
@@ -534,8 +658,15 @@ void Task_Clock_Init( void )
     gabDisplayPartOn[ u8Index ] = TRUE;
   }
 
-  // We don't need the repeated press function for buttons
-  Buttons_SetRepeatedPresses( FALSE );
+  // We don't need the repeated press function for buttons normally
+  Buttons_SetRepeatedPresses( BUTTON_SW1, FALSE );
+  Buttons_SetRepeatedPresses( BUTTON_SW2, FALSE );
+  Buttons_SetRepeatedPresses( BUTTON_SW3, FALSE );
+  Buttons_SetRepeatedPresses( BUTTON_SW4_UP, FALSE );
+  Buttons_SetRepeatedPresses( BUTTON_SW4_DOWN, FALSE );
+  Buttons_SetRepeatedPresses( BUTTON_SW4_LEFT, FALSE );
+  Buttons_SetRepeatedPresses( BUTTON_SW4_RIGHT, FALSE );
+  Buttons_SetRepeatedPresses( BUTTON_SW4_PUSH, FALSE );
 }
 
 /*! *******************************************************************
@@ -547,16 +678,20 @@ void Task_Clock_Cycle( void )
 {
   static uint32_t u32Timer = 0u;
   
-  // Get the current time from RTC
-  HAL_RTC_GetTime( &hrtc, &gsTimeStructure, RTC_FORMAT_BIN );
-  // Get the current date from RTC
-  HAL_RTC_GetDate( &hrtc, &gsDateStructure, RTC_FORMAT_BIN );
-  
   // Refresh display content
   if( ( HAL_GetTick() - u32Timer > 100u )
-   && ( hdma_spi2_tx.Instance->CNDTR <= LCD_WIDTH*LCD_HEIGHT/3u ) )  // synchronization to the display DMA
+   && ( hdma_spi2_tx.Instance->CNDTR <= LCD_WIDTH*(LCD_HEIGHT*1u/3u + 1u) )  // synchronization to the display DMA
+   && ( hdma_spi2_tx.Instance->CNDTR > LCD_WIDTH*(LCD_HEIGHT*1u/3u) ) )
   {
     u32Timer = HAL_GetTick();
+    // Get the current time from RTC
+    HAL_RTC_GetTime( &hrtc, &gsTimeStructure, RTC_FORMAT_BIN );
+    // Get the current date from RTC
+    HAL_RTC_GetDate( &hrtc, &gsDateStructure, RTC_FORMAT_BIN );
+    // Get the current DST status
+    gbDaylightSavingTime = HAL_RTC_DST_ReadStoreOperation( &hrtc ) ? TRUE : FALSE;
+    gsTimeStructure.DayLightSaving = ( TRUE == gbDaylightSavingTime ) ? RTC_CR_BKP : 0u;
+    // Update display contents
     RefreshDisplay();
   }
 

@@ -781,7 +781,6 @@ static void FunctionCallWidget( BOOL bDraw )
  * \brief  Initialize layer
  * \param  -
  * \return -
- * \note   Should be called after configuration init!
  *********************************************************************/
 void Task_Menu_Init( void )
 {
@@ -790,6 +789,15 @@ void Task_Menu_Init( void )
   gsMenu.u32Index = 0u;
   gsMenu.u32ListScroll = 0u;
   gsMenu.psMenu = &gsMainMenu;
+  // Set button repeat function
+  Buttons_SetRepeatedPresses( BUTTON_SW1, FALSE );
+  Buttons_SetRepeatedPresses( BUTTON_SW2, FALSE );
+  Buttons_SetRepeatedPresses( BUTTON_SW3, FALSE );
+  Buttons_SetRepeatedPresses( BUTTON_SW4_UP, TRUE );
+  Buttons_SetRepeatedPresses( BUTTON_SW4_DOWN, TRUE );
+  Buttons_SetRepeatedPresses( BUTTON_SW4_LEFT, TRUE );
+  Buttons_SetRepeatedPresses( BUTTON_SW4_RIGHT, TRUE );
+  Buttons_SetRepeatedPresses( BUTTON_SW4_PUSH, FALSE );
   // Draw the menu
   DrawMenu();
 }

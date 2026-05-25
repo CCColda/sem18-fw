@@ -61,7 +61,7 @@ static const S_GPIO_PIN casPins[ NUM_BUTTONS ] =
 };
 
 //! \brief Long pressed buttons generate repeated events, or not
-static volatile BOOL gbRepeatedPress;
+static volatile BOOL gabRepeatedPress[ NUM_BUTTONS ];
 
 //! \brief States of each buttons
 volatile E_BUTTONS_STATE gaeButtonsState[ NUM_BUTTONS ];
@@ -105,8 +105,8 @@ void Buttons_Init( void )
   {
     gaeButtonsState[ u32Index ] = BUTTON_INACTIVE;
     gaeButtonsEvent[ u32Index ] = BUTTON_NOEVENT;
+    gabRepeatedPress[ u32Index ] = FALSE;
   }
-  gbRepeatedPress = FALSE;
 }
 
 /*! *******************************************************************
@@ -150,7 +150,7 @@ void Buttons_TimerIT( void )
           
         case BUTTON_ACTIVE:
           // Repetition, if enabled
-          if( TRUE == gbRepeatedPress )
+          if( TRUE == gabRepeatedPress[ u32Index ] )
           {
             // Time's up
             if( (I32)( gau32ButtonsTimer[ u32Index ] - u32TimeNowMs ) <= 0 )
@@ -244,12 +244,13 @@ E_BUTTONS_EVENT Buttons_GetEvent( E_BUTTONS_INDEX eButton )
 
 /*! *******************************************************************
  * \brief  Turn repeated keypress events on long pressed buttons on/off.
+ * \param  eButton: button where function is tured on/off
  * \param  bSet: TRUE: turn on; FALSE: turn off
  * \return -
  *********************************************************************/
-void Buttons_SetRepeatedPresses( BOOL bSet )
+void Buttons_SetRepeatedPresses( E_BUTTONS_INDEX eButton, BOOL bSet )
 {
-  gbRepeatedPress = bSet;
+  gabRepeatedPress[ eButton ] = bSet;
 }
 
 /*! *******************************************************************

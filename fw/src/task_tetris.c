@@ -502,6 +502,16 @@ void Task_Tetris_Init( void )
 
   // Clear display
   LCD_Clear( BLACK );
+
+  // We don't need the repeated press function for buttons normally
+  Buttons_SetRepeatedPresses( BUTTON_SW1, FALSE );
+  Buttons_SetRepeatedPresses( BUTTON_SW2, FALSE );
+  Buttons_SetRepeatedPresses( BUTTON_SW3, FALSE );
+  Buttons_SetRepeatedPresses( BUTTON_SW4_UP, FALSE );
+  Buttons_SetRepeatedPresses( BUTTON_SW4_DOWN, FALSE );
+  Buttons_SetRepeatedPresses( BUTTON_SW4_LEFT, FALSE );
+  Buttons_SetRepeatedPresses( BUTTON_SW4_RIGHT, FALSE );
+  Buttons_SetRepeatedPresses( BUTTON_SW4_PUSH, FALSE );
 }
 
 /*! *******************************************************************
@@ -554,8 +564,9 @@ void Task_Tetris_Cycle( void )
   // If the game is not running yet
   if( FALSE == gbRunning )
   {
-    // Check start button
-    if( BUTTON_PRESSED == Buttons_GetEvent( BUTTON_SW2 ) )
+    // Check start button and rotate button
+    if( ( BUTTON_PRESSED == Buttons_GetEvent( BUTTON_SW2 ) )
+     || ( BUTTON_PRESSED == Buttons_GetEvent( BUTTON_SW4_PUSH ) ) )
     {
       // Pressing start button will start/restart the game
       gbRunning = TRUE;
