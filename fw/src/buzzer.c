@@ -42,8 +42,9 @@
 //! \brief Timer for time-limited beeps
 static struct
 {
-  U32  u32TimerMs;       //!< Timer ms counter
-  BOOL bTimerIsRunning;  //!< Is the timer valid
+  U32                u32TimerMs;       //!< Timer ms counter
+  BOOL               bTimerIsRunning;  //!< Is the timer valid
+  E_BUZZER_ALARMMODE eAlarmMode;       //!< Which alarm is played right now
 } gsBuzzerTimer;
 
 
@@ -79,6 +80,7 @@ void Buzzer_Init( void )
   HAL_TIM_PWM_Start( &HAL_TIMER_PERIPH, TIMER_CHANNEL );
   // Init software timer
   gsBuzzerTimer.bTimerIsRunning = FALSE;
+  gsBuzzerTimer.eAlarmMode = BUZZER_ALARMMODE_NONE;
 }
 
 /*! *******************************************************************
@@ -88,12 +90,107 @@ void Buzzer_Init( void )
  *********************************************************************/
 void Buzzer_Cycle( void )
 {
-  // If the timer expired...
-  if( ( TRUE == gsBuzzerTimer.bTimerIsRunning )
-   && ( (I32)(gsBuzzerTimer.u32TimerMs - HAL_GetTick()) < 0 ) )
+  U32 u32CurrentTimeMs = HAL_GetTick();
+  
+  switch( gsBuzzerTimer.eAlarmMode )
   {
-    Buzzer_Silence();
-    gsBuzzerTimer.bTimerIsRunning = FALSE;
+    case BUZZER_ALARMMODE_NONE:  // Just a short beep
+      // If the timer expired...
+      if( ( TRUE == gsBuzzerTimer.bTimerIsRunning )
+         && ( (I32)(gsBuzzerTimer.u32TimerMs - u32CurrentTimeMs) < 0 ) )
+      {
+        Buzzer_Silence();
+        gsBuzzerTimer.bTimerIsRunning = FALSE;
+      }
+      break;
+      
+    case BUZZER_ALARMMODE_TWOBEEPS:  // Two short beeps
+      // If the timer is running...
+      if( TRUE == gsBuzzerTimer.bTimerIsRunning )
+      {
+        if( ( (I32)(gsBuzzerTimer.u32TimerMs - u32CurrentTimeMs) < 0 )
+           && ( (I32)(gsBuzzerTimer.u32TimerMs - u32CurrentTimeMs) >= -100 ) )
+        {
+          Buzzer_Note( 2700u, 128u );
+        }
+        else if( ( (I32)(gsBuzzerTimer.u32TimerMs - u32CurrentTimeMs) < -100 )
+           && ( (I32)(gsBuzzerTimer.u32TimerMs - u32CurrentTimeMs) >= -300 ) )
+        {
+          Buzzer_Silence();
+        }
+        else if( ( (I32)(gsBuzzerTimer.u32TimerMs - u32CurrentTimeMs) < -300 )
+           && ( (I32)(gsBuzzerTimer.u32TimerMs - u32CurrentTimeMs) >= -400 ) )
+        {
+          Buzzer_Note( 2700u, 128u );
+        }
+        else if( (I32)(gsBuzzerTimer.u32TimerMs - u32CurrentTimeMs) < -400 )
+        {
+          Buzzer_Silence();
+          gsBuzzerTimer.bTimerIsRunning = FALSE;
+        }
+      }
+      else
+      {
+        // End of alarm
+        Buzzer_Silence();
+        gsBuzzerTimer.eAlarmMode = BUZZER_ALARMMODE_NONE;
+      }
+      break;
+      
+    case BUZZER_ALARMMODE_NORMAL:  // Normal alarm
+      // If the timer is running...
+      if( TRUE == gsBuzzerTimer.bTimerIsRunning )
+      {
+        if( ( (I32)(gsBuzzerTimer.u32TimerMs - u32CurrentTimeMs) < 0 )
+           && ( (I32)(gsBuzzerTimer.u32TimerMs - u32CurrentTimeMs) >= -50 ) )
+        {
+          Buzzer_Note( 2700u, 128u );
+        }
+        else if( ( (I32)(gsBuzzerTimer.u32TimerMs - u32CurrentTimeMs) < -50 )
+           && ( (I32)(gsBuzzerTimer.u32TimerMs - u32CurrentTimeMs) >= -100 ) )
+        {
+          Buzzer_Silence();
+        }
+        else if( ( (I32)(gsBuzzerTimer.u32TimerMs - u32CurrentTimeMs) < -100 )
+           && ( (I32)(gsBuzzerTimer.u32TimerMs - u32CurrentTimeMs) >= -150 ) )
+        {
+          Buzzer_Note( 2700u, 128u );
+        }
+        else if( ( (I32)(gsBuzzerTimer.u32TimerMs - u32CurrentTimeMs) < -150 )
+           && ( (I32)(gsBuzzerTimer.u32TimerMs - u32CurrentTimeMs) >= -200 ) )
+        {
+          Buzzer_Silence();
+        }
+        else if( ( (I32)(gsBuzzerTimer.u32TimerMs - u32CurrentTimeMs) < -200 )
+           && ( (I32)(gsBuzzerTimer.u32TimerMs - u32CurrentTimeMs) >= -250 ) )
+        {
+          Buzzer_Note( 2700u, 128u );
+        }
+        else if( ( (I32)(gsBuzzerTimer.u32TimerMs - u32CurrentTimeMs) < -250 )
+           && ( (I32)(gsBuzzerTimer.u32TimerMs - u32CurrentTimeMs) >= -300 ) )
+        {
+          Buzzer_Silence();
+        }
+        else if( (I32)(gsBuzzerTimer.u32TimerMs - u32CurrentTimeMs) < -999 )
+        {
+          // Never stop
+          gsBuzzerTimer.u32TimerMs = u32CurrentTimeMs;
+        }
+      }
+      else
+      {
+        // End of alarm
+        Buzzer_Silence();
+        gsBuzzerTimer.eAlarmMode = BUZZER_ALARMMODE_NONE;
+      }
+      break;
+      
+    default:  // This should not happen
+      //TODO: error handling
+      Buzzer_Silence();
+      gsBuzzerTimer.eAlarmMode = BUZZER_ALARMMODE_NONE;
+      gsBuzzerTimer.bTimerIsRunning = FALSE;
+      break;
   }
 }
 
@@ -145,7 +242,32 @@ void Buzzer_Beep( U32 u32FrequencyHz, U8 u8DutyCycle, U32 u32DurationMs )
   Buzzer_Note( u32FrequencyHz, u8DutyCycle );
   gsBuzzerTimer.u32TimerMs = HAL_GetTick() + u32DurationMs;
   gsBuzzerTimer.bTimerIsRunning = TRUE;
+  gsBuzzerTimer.eAlarmMode = BUZZER_ALARMMODE_NONE;
 }
+
+/*! *******************************************************************
+ * \brief  Sounds the alarm
+ * \param  eAlarmMode: which chime should be played
+ * \return -
+ *********************************************************************/
+void Buzzer_Alarm( E_BUZZER_ALARMMODE eAlarmMode )
+{
+  gsBuzzerTimer.eAlarmMode = eAlarmMode;
+  gsBuzzerTimer.bTimerIsRunning = TRUE;
+  gsBuzzerTimer.u32TimerMs = HAL_GetTick();
+}
+
+/*! *******************************************************************
+ * \brief
+ * \param
+ * \return
+ *********************************************************************/
+
+/*! *******************************************************************
+ * \brief
+ * \param
+ * \return
+ *********************************************************************/
 
 
 //-----------------------------------------------< EOF >--------------------------------------------------/

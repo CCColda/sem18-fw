@@ -39,6 +39,7 @@
 //--------------------------------------------------------------------------------------------------------/
 void Task_Clock_Init( void );
 void Task_Clock_Cycle( void );
+void Task_Clock_AlarmIT( void );
 
 
 #endif  // TASK_CLOCK_H

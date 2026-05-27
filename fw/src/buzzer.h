@@ -27,6 +27,13 @@
 //--------------------------------------------------------------------------------------------------------/
 // Types
 //--------------------------------------------------------------------------------------------------------/
+//! \brief Alarm chimes
+typedef enum
+{
+  BUZZER_ALARMMODE_NONE,      //!< Default: no alarm sound
+  BUZZER_ALARMMODE_TWOBEEPS,  //!< Just two short beeps
+  BUZZER_ALARMMODE_NORMAL     //!< Normal alarm sound
+} E_BUZZER_ALARMMODE;
 
 
 //--------------------------------------------------------------------------------------------------------/
@@ -45,6 +52,7 @@ void Buzzer_Cycle( void );
 void Buzzer_Note( U32 u32FrequencyHz, U8 u8DutyCycle );
 void Buzzer_Silence( void );
 void Buzzer_Beep( U32 u32FrequencyHz, U8 u8DutyCycle, U32 u32DurationMs );
+void Buzzer_Alarm( E_BUZZER_ALARMMODE eAlarmMode );
 
 
 #endif  // BUZZER_H

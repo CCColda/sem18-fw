@@ -58,6 +58,15 @@ typedef enum
   NUMBEROF_STATE_SET_ELEMENTS
 } E_STATE_SET;
 
+//! \brief Functions of the clock task
+typedef enum
+{
+  CLOCKTASK_STATE_DISPLAY = 0u,    //!< Display the current time and date
+  CLOCKTASK_STATE_SET,             //!< Set the current time and date
+  CLOCKTASK_STATE_ALARM_SET,       //!< Set the alarm
+  CLOCKTASK_STATE_ALARM,           //!< Sound the alarm
+} E_CLOCKTASK_STATE;
+
 
 //--------------------------------------------------------------------------------------------------------/
 // Global variables
@@ -75,6 +84,12 @@ static BOOL gbDaylightSavingTime;
 //! \note  Indexed by E_STATE_SET values
 static BOOL gabDisplayPartOn[ NUMBEROF_STATE_SET_ELEMENTS ];
 
+//! \brief Current function of the clock task
+static E_CLOCKTASK_STATE geClockState;
+
+//! \brief Which clock/date value are we changing right now
+static E_STATE_SET geClockSetState;
+
 
 //--------------------------------------------------------------------------------------------------------/
 // Static function declarations
@@ -85,6 +100,8 @@ static void DrawSegment( BOOL bHorizontal, U16 u16X0, U16 u16Y0, U16 u16X1, U16 
 static void Draw7Segment( U8 u8Number, U16 u16X0, U16 u16Y0, U16 u16WidthPx, U16 u16Color );
 static void PrintClock( U16 u16X, U16 u16Y );
 static void PrintDate( U16 u16X, U16 u16Y );
+static void IncrementTimeOrDate( void );
+static void DecrementTimeOrDate( void );
 static void CheckButtons( void );
 
 
@@ -98,12 +115,49 @@ static void CheckButtons( void );
  *********************************************************************/
 static void RefreshDisplay( void )
 {
+  static U32 u32BlinkTimer = 0u;
+  U32 u32CurrentTick = HAL_GetTick();
+  
   // Display the battery level in the upper right corner
   PrintBatteryLevel( LCD_WIDTH - BATTERY_ICON_WIDTH - 1u, 0u );
-  // Display clock in the middle of the screen
-  PrintClock( (LCD_WIDTH/2u)-(7*SEGMENTS_WIDTH/2u), (LCD_HEIGHT*0.6)-SEGMENTS_WIDTH );
-  // Display the date in the upper left corner
-  PrintDate( 0u, 0u );
+  
+  // Display contents according to the state
+  switch( geClockState )
+  {
+    case CLOCKTASK_STATE_SET:
+      // Blink the current value to be set on screen
+      if( u32CurrentTick - u32BlinkTimer >= 1000u )
+      {
+        u32BlinkTimer = u32CurrentTick;
+      }
+      if( u32CurrentTick - u32BlinkTimer < 200u )
+      {
+        // Mask out the value
+        gabDisplayPartOn[ (U8)geClockSetState ] = FALSE;
+      }
+      else
+      {
+        gabDisplayPartOn[ (U8)geClockSetState ] = TRUE;
+      }
+      //NOTE: intentional fall-through!
+      
+    case CLOCKTASK_STATE_DISPLAY:
+    case CLOCKTASK_STATE_ALARM:  // Clock is displayed normally in alarm mode
+      // Display clock in the middle of the screen
+      PrintClock( (LCD_WIDTH/2u)-(7*SEGMENTS_WIDTH/2u), (LCD_HEIGHT*0.6)-SEGMENTS_WIDTH );
+      // Display the date in the upper left corner
+      PrintDate( 0u, 0u );
+      break;
+      
+    case CLOCKTASK_STATE_ALARM_SET:
+      //TODO: implement function
+      break;
+      
+    default:
+      //TODO: error handling
+      geClockState = CLOCKTASK_STATE_DISPLAY;
+      break;
+  }
 }
 
 /*! *******************************************************************
@@ -270,28 +324,28 @@ static void Draw7Segment( U8 u8Number, U16 u16X0, U16 u16Y0, U16 u16WidthPx, U16
 static void PrintClock( U16 u16X, U16 u16Y )
 {
   // Clear display
-  LCD_DrawFilledRectangle( u16X, u16Y, u16X+SEGMENTS_WIDTH*6.6, u16Y+2*SEGMENTS_WIDTH, COLOR_BG );
+  LCD_DrawFilledRectangle( u16X, u16Y, u16X+(U16)(SEGMENTS_WIDTH*6.6), u16Y+2*SEGMENTS_WIDTH, COLOR_BG );
 
   // Draw hours
   if( TRUE == gabDisplayPartOn[ STATE_SET_HOUR ] )
   {
     Draw7Segment( gsTimeStructure.Hours/10u, u16X, u16Y, SEGMENTS_WIDTH, COLOR_INK );
-    Draw7Segment( gsTimeStructure.Hours%10u, u16X+SEGMENTS_WIDTH*1.2, u16Y, SEGMENTS_WIDTH, COLOR_INK );
+    Draw7Segment( gsTimeStructure.Hours%10u, u16X+(U16)(SEGMENTS_WIDTH*1.2), u16Y, SEGMENTS_WIDTH, COLOR_INK );
   }
   // Draw separator
-  LCD_DrawFilledRectangle( u16X+SEGMENTS_WIDTH*2.4, u16Y+SEGMENTS_WIDTH*0.45, u16X+SEGMENTS_WIDTH*2.5, u16Y+SEGMENTS_WIDTH*0.55, COLOR_INK );
-  LCD_DrawFilledRectangle( u16X+SEGMENTS_WIDTH*2.4, u16Y+SEGMENTS_WIDTH*1.45, u16X+SEGMENTS_WIDTH*2.5, u16Y+SEGMENTS_WIDTH*1.55, COLOR_INK );
+  LCD_DrawFilledRectangle( u16X+(U16)(SEGMENTS_WIDTH*2.4), u16Y+(U16)(SEGMENTS_WIDTH*0.45), u16X+(U16)(SEGMENTS_WIDTH*2.5), u16Y+(U16)(SEGMENTS_WIDTH*0.55), COLOR_INK );
+  LCD_DrawFilledRectangle( u16X+(U16)(SEGMENTS_WIDTH*2.4), u16Y+(U16)(SEGMENTS_WIDTH*1.45), u16X+(U16)(SEGMENTS_WIDTH*2.5), u16Y+(U16)(SEGMENTS_WIDTH*1.55), COLOR_INK );
   // Draw minutes
   if( TRUE == gabDisplayPartOn[ STATE_SET_MINUTES ] )
   {
-    Draw7Segment( gsTimeStructure.Minutes/10u, u16X+SEGMENTS_WIDTH*2.7, u16Y, SEGMENTS_WIDTH, COLOR_INK );
-    Draw7Segment( gsTimeStructure.Minutes%10u, u16X+SEGMENTS_WIDTH*3.9, u16Y, SEGMENTS_WIDTH, COLOR_INK );
+    Draw7Segment( gsTimeStructure.Minutes/10u, u16X+(U16)(SEGMENTS_WIDTH*2.7), u16Y, SEGMENTS_WIDTH, COLOR_INK );
+    Draw7Segment( gsTimeStructure.Minutes%10u, u16X+(U16)(SEGMENTS_WIDTH*3.9), u16Y, SEGMENTS_WIDTH, COLOR_INK );
   }
   // Draw seconds
   if( TRUE == gabDisplayPartOn[ STATE_SET_SECONDS ] )
   {
-    Draw7Segment( gsTimeStructure.Seconds/10u, u16X+SEGMENTS_WIDTH*5.4, u16Y+SEGMENTS_WIDTH, SEGMENTS_WIDTH/2, COLOR_INK );
-    Draw7Segment( gsTimeStructure.Seconds%10u, u16X+SEGMENTS_WIDTH*6.1, u16Y+SEGMENTS_WIDTH, SEGMENTS_WIDTH/2, COLOR_INK );
+    Draw7Segment( gsTimeStructure.Seconds/10u, u16X+(U16)(SEGMENTS_WIDTH*5.4), u16Y+SEGMENTS_WIDTH, SEGMENTS_WIDTH/2, COLOR_INK );
+    Draw7Segment( gsTimeStructure.Seconds%10u, u16X+(U16)(SEGMENTS_WIDTH*6.1), u16Y+SEGMENTS_WIDTH, SEGMENTS_WIDTH/2, COLOR_INK );
   }
   // Draw Daylight Saving Time (DST)
   if( ( ( TRUE == gabDisplayPartOn[ STATE_SET_DST ] )
@@ -300,7 +354,7 @@ static void PrintClock( U16 u16X, U16 u16Y )
        && ( FALSE == gbDaylightSavingTime ) ) )
   {
     // Print "DST" over the seconds display
-    LCD_PrintString( u16X+SEGMENTS_WIDTH*5.5, u16Y, "DST", LCD_FONT_11x18, COLOR_INK, COLOR_BG );
+    LCD_PrintString( u16X+(U16)(SEGMENTS_WIDTH*5.5), u16Y, "DST", LCD_FONT_11x18, COLOR_INK, COLOR_BG );
   }
 }
 
@@ -344,285 +398,311 @@ static void PrintDate( U16 u16X, U16 u16Y )
 }
 
 /*! *******************************************************************
+ * \brief  Increments the time/date value selected by geClockSetState
+ * \param  -
+ * \return -
+ *********************************************************************/
+static void IncrementTimeOrDate( void )
+{
+  // Change one of the values
+  switch( geClockSetState )
+  {
+    case STATE_SET_HOUR:
+      gsTimeStructure.Hours += 1u;
+      break;
+      
+    case STATE_SET_MINUTES:
+      gsTimeStructure.Minutes += 1u;
+      break;
+      
+    case STATE_SET_SECONDS:
+      if( gsTimeStructure.Seconds >= 30u )
+      {
+        gsTimeStructure.Minutes += 1u;
+      }
+      gsTimeStructure.Seconds = 0u;
+      gsTimeStructure.SubSeconds = 0u;
+      break;
+      
+    case STATE_SET_YEAR:
+      gsDateStructure.Year += 1u;
+      break;
+      
+    case STATE_SET_MONTH:
+      gsDateStructure.Month += 1u;
+      break;
+      
+    case STATE_SET_DAY:
+      gsDateStructure.Date += 1u;
+      break;
+      
+    case STATE_SET_WEEKDAY:
+      gsDateStructure.WeekDay += 1u;
+      break;
+      
+    case STATE_SET_DST:
+      gbDaylightSavingTime = (TRUE == gbDaylightSavingTime) ? FALSE : TRUE;
+      if( TRUE == gbDaylightSavingTime )
+      {
+        gsTimeStructure.DayLightSaving = RTC_CR_ADD1H | RTC_CR_BKP;
+      }
+      else
+      {
+        gsTimeStructure.DayLightSaving = RTC_CR_SUB1H;
+      }
+      break;
+      
+    default:
+      //TODO: error handler
+      geClockSetState = STATE_SET_HOUR;
+      break;
+  }
+  //Check for validity and adjust format
+  if( gsTimeStructure.Minutes >= 60u )
+  {
+    gsTimeStructure.Minutes -= 60u;
+    gsTimeStructure.Hours += 1u;
+  }
+  if( gsTimeStructure.Hours >= 24u )
+  {
+    gsTimeStructure.Hours -= 24u;
+    gsDateStructure.WeekDay += 1u;
+    gsDateStructure.Date += 1u;
+  }
+  if( gsDateStructure.WeekDay > 7u )
+  {
+    gsDateStructure.WeekDay -= 7u;
+  }
+#warning "FIXME: is this the right way?"
+  if( gsDateStructure.Date >= 31u )
+  {
+    gsDateStructure.Date -= 31u;
+    gsDateStructure.Month += 1u;
+  }
+  if( gsDateStructure.Month >= 12u )
+  {
+    gsDateStructure.Month -= 12u;
+    gsDateStructure.Year += 1u;
+  }
+  // Update the time/date
+  HAL_PWR_EnableBkUpAccess();
+  __HAL_RTC_WRITEPROTECTION_DISABLE(&hrtc);
+  HAL_RTC_SetTime( &hrtc, &gsTimeStructure, RTC_FORMAT_BIN );
+  HAL_Delay( 5u );
+  HAL_RTC_SetDate( &hrtc, &gsDateStructure, RTC_FORMAT_BIN );
+  __HAL_RTC_WRITEPROTECTION_ENABLE(&hrtc);
+  HAL_PWR_DisableBkUpAccess();  
+}
+
+/*! *******************************************************************
+ * \brief  Increments the time/date value selected by geClockSetState
+ * \param  -
+ * \return -
+ *********************************************************************/
+static void DecrementTimeOrDate( void )
+{
+  // Change one of the values
+  switch( geClockSetState )
+  {
+    case STATE_SET_HOUR:
+      gsTimeStructure.Hours -= 1u;
+      break;
+      
+    case STATE_SET_MINUTES:
+      gsTimeStructure.Minutes -= 1u;
+      break;
+      
+    case STATE_SET_SECONDS:
+      if( gsTimeStructure.Seconds >= 30u )
+      {
+        gsTimeStructure.Minutes += 1u;
+      }
+      gsTimeStructure.Seconds = 0u;
+      gsTimeStructure.SubSeconds = 0u;
+      break;
+      
+    case STATE_SET_YEAR:
+      gsDateStructure.Year -= 1u;
+      break;
+      
+    case STATE_SET_MONTH:
+      gsDateStructure.Month -= 1u;
+      break;
+      
+    case STATE_SET_DAY:
+      gsDateStructure.Date -= 1u;
+      break;
+      
+    case STATE_SET_WEEKDAY:
+      gsDateStructure.WeekDay -= 1u;
+      break;
+      
+    case STATE_SET_DST:
+      gbDaylightSavingTime = (TRUE == gbDaylightSavingTime) ? FALSE : TRUE;
+      if( TRUE == gbDaylightSavingTime )
+      {
+        gsTimeStructure.DayLightSaving = RTC_CR_ADD1H | RTC_CR_BKP;
+      }
+      else
+      {
+        gsTimeStructure.DayLightSaving = RTC_CR_SUB1H;
+      }
+      break;
+      
+    default:
+      //TODO: error handler
+      geClockSetState = STATE_SET_HOUR;
+      break;
+  }
+  //Check for validity and adjust format
+  if( gsTimeStructure.Minutes >= 60u )
+  {
+    gsTimeStructure.Minutes += 60u;
+    gsTimeStructure.Hours -= 1u;
+  }
+  if( gsTimeStructure.Hours >= 24u )
+  {
+    gsTimeStructure.Hours += 24u;
+    gsDateStructure.WeekDay -= 1u;
+    gsDateStructure.Date -= 1u;
+  }
+  if( gsDateStructure.WeekDay > 7u )
+  {
+    gsDateStructure.WeekDay += 7u;
+  }
+#warning "FIXME: is this the right way?"
+  if( gsDateStructure.Date >= 31u )
+  {
+    gsDateStructure.Date += 31u;
+    gsDateStructure.Month -= 1u;
+  }
+  if( gsDateStructure.Month >= 12u )
+  {
+    gsDateStructure.Month += 12u;
+    gsDateStructure.Year -= 1u;
+  }
+  // Update the time/date
+  HAL_PWR_EnableBkUpAccess();
+  __HAL_RTC_WRITEPROTECTION_DISABLE(&hrtc);
+  HAL_RTC_SetTime( &hrtc, &gsTimeStructure, RTC_FORMAT_BIN );
+  HAL_Delay( 5u );
+  HAL_RTC_SetDate( &hrtc, &gsDateStructure, RTC_FORMAT_BIN );
+  __HAL_RTC_WRITEPROTECTION_ENABLE(&hrtc);
+  HAL_PWR_DisableBkUpAccess();  
+}
+
+/*! *******************************************************************
  * \brief  Checks the buttons and act accordingly
  * \param  -
  * \return -
  *********************************************************************/
 static void CheckButtons( void )
 {
-  static U32  u32Timer = 0u;
-  static U32  u32BlinkTimer = 0u;
-  static BOOL bSetTime = FALSE;
-  static E_STATE_SET eState = STATE_SET_HOUR;
+  static U32 u32Timer = 0u;
   E_BUTTONS_EVENT eButtonTop = Buttons_GetEvent( BUTTON_SW1 );
   E_BUTTONS_EVENT eButtonMiddle = Buttons_GetEvent( BUTTON_SW3 );
   E_BUTTONS_EVENT eButtonBottom = Buttons_GetEvent( BUTTON_SW2 );
+  E_BUTTONS_EVENT eButtonJoyPush = Buttons_GetEvent( BUTTON_SW4_PUSH );
+  E_BUTTONS_EVENT eButtonJoyUp = Buttons_GetEvent( BUTTON_SW4_UP );
+  E_BUTTONS_EVENT eButtonJoyDown = Buttons_GetEvent( BUTTON_SW4_DOWN );
+  E_BUTTONS_EVENT eButtonJoyLeft = Buttons_GetEvent( BUTTON_SW4_LEFT );
+  E_BUTTONS_EVENT eButtonJoyRight = Buttons_GetEvent( BUTTON_SW4_RIGHT );
   U32 u32CurrentTick = HAL_GetTick();
   
-  // Top button: adjust/select
-  if( BUTTON_PRESSED == eButtonTop )
+  // Act differently according to functional state
+  switch( geClockState )
   {
-    // If idle mode
-    if( FALSE == bSetTime )
-    {
-      u32Timer = u32CurrentTick;
-    }
-    else  // we're setting the time and date
-    {
-      if( eState < STATE_SET_DST )
+    case CLOCKTASK_STATE_DISPLAY:  // Just display the current time and date
+      // Joystick push: go to the menu
+      if( BUTTON_PRESSED == eButtonJoyPush )
       {
-        gabDisplayPartOn[ (U8)eState ] = TRUE;
-        eState++;
+        Tasks_EndTask();
+      }
+      // Middle button: enter deep sleep
+      if( BUTTON_PRESSED == eButtonMiddle )
+      {
+        Housekeeping_DeepSleep();
+      }
+      // Top button: long press enters time/date setting function
+      if( BUTTON_PRESSED == eButtonTop )
+      {
+        u32Timer = u32CurrentTick;
+      }
+      else if( BUTTON_RELEASED == eButtonTop )
+      {
+        u32Timer = 0u;
+      }
+      // Check top button timer
+      if( ( 0u != u32Timer )
+       && ( BUTTON_ACTIVE == gaeButtonsState[ BUTTON_SW1 ] )
+       && ( u32CurrentTick - u32Timer > 1000u ) )
+      {
+        // Enter time setting state
+        geClockState = CLOCKTASK_STATE_SET;
+        geClockSetState = STATE_SET_HOUR;
+        u32Timer = 0u;
         Buzzer_Beep( 2700u, 128u, 50u );
+        Buttons_SetRepeatedPresses( BUTTON_SW2, TRUE );
+        Buttons_SetRepeatedPresses( BUTTON_SW3, TRUE );
       }
-      else  // everything is set
+      break;
+      
+    case CLOCKTASK_STATE_SET:  // Set the current time and date
+      // Top button: select which variable to adjust
+      if( BUTTON_PRESSED == eButtonTop )
       {
-        bSetTime = FALSE;
-        gabDisplayPartOn[ (U8)eState ] = TRUE;
-        Buzzer_Beep( 3100u, 128u, 50u );
-        Buttons_SetRepeatedPresses( BUTTON_SW2, FALSE );
-        Buttons_SetRepeatedPresses( BUTTON_SW3, FALSE );
+        // If there are other variables to adjust
+        if( geClockSetState < STATE_SET_DST )
+        {
+          gabDisplayPartOn[ (U8)geClockSetState ] = TRUE;
+          geClockSetState++;
+          Buzzer_Beep( 2700u, 128u, 50u );
+        }
+        else  // everything is set
+        {
+          geClockState = CLOCKTASK_STATE_DISPLAY;  // return to simple display function
+          gabDisplayPartOn[ (U8)geClockSetState ] = TRUE;
+          Buzzer_Beep( 3100u, 128u, 50u );
+          Buttons_SetRepeatedPresses( BUTTON_SW2, FALSE );
+          Buttons_SetRepeatedPresses( BUTTON_SW3, FALSE );
+        }
       }
-    }
-  }
-  else if( BUTTON_RELEASED == eButtonTop )
-  {
-    u32Timer = 0u;
-  }
-  // Check top button timer
-  if( ( 0u != u32Timer )
-   && ( FALSE == bSetTime )
-   && ( u32CurrentTick - u32Timer > 1000u ) )
-  {
-    // Enter time setting state
-    bSetTime = TRUE;
-    eState = STATE_SET_HOUR;
-    Buzzer_Beep( 2700u, 128u, 50u );
-    Buttons_SetRepeatedPresses( BUTTON_SW2, TRUE );
-    Buttons_SetRepeatedPresses( BUTTON_SW3, TRUE );
-  }
-  
-  // Bottom button: set
-  if( BUTTON_PRESSED == eButtonBottom )
-  {
-    // If we're setting the time and date
-    if( TRUE == bSetTime )
-    {
-      switch( eState )
+      // Middle button: decrement value
+      if( BUTTON_PRESSED == eButtonMiddle )
       {
-        case STATE_SET_HOUR:
-          gsTimeStructure.Hours += 1u;
-          break;
-          
-        case STATE_SET_MINUTES:
-          gsTimeStructure.Minutes += 1u;
-          break;
-
-        case STATE_SET_SECONDS:
-          if( gsTimeStructure.Seconds >= 30u )
-          {
-            gsTimeStructure.Minutes += 1u;
-          }
-          gsTimeStructure.Seconds = 0u;
-          gsTimeStructure.SubSeconds = 0u;
-          break;
-
-        case STATE_SET_YEAR:
-          gsDateStructure.Year += 1u;
-          break;
-
-        case STATE_SET_MONTH:
-          gsDateStructure.Month += 1u;
-          break;
-
-        case STATE_SET_DAY:
-          gsDateStructure.Date += 1u;
-          break;
-          
-        case STATE_SET_WEEKDAY:
-          gsDateStructure.WeekDay += 1u;
-          break;
-
-        case STATE_SET_DST:
-          gbDaylightSavingTime = (TRUE == gbDaylightSavingTime) ? FALSE : TRUE;
-          if( TRUE == gbDaylightSavingTime )
-          {
-            gsTimeStructure.DayLightSaving = RTC_CR_ADD1H | RTC_CR_BKP;
-          }
-          else
-          {
-            gsTimeStructure.DayLightSaving = RTC_CR_SUB1H;
-          }
-          break;
-
-        default:
-          //TODO: error handler
-          break;
+        DecrementTimeOrDate();
       }
-      //Check for validity and adjust format
-      if( gsTimeStructure.Minutes >= 60u )
+      // Bottom button: increment value
+      if( BUTTON_PRESSED == eButtonBottom )
       {
-        gsTimeStructure.Minutes -= 60u;
-        gsTimeStructure.Hours += 1u;
-      }
-      if( gsTimeStructure.Hours >= 24u )
+        IncrementTimeOrDate();
+      }      
+      break;
+      
+    case CLOCKTASK_STATE_ALARM:  // Sound the alarm
+      // Any button exits the alarm mode
+      if( ( BUTTON_PRESSED == eButtonTop )
+       || ( BUTTON_PRESSED == eButtonMiddle )
+       || ( BUTTON_PRESSED == eButtonBottom )
+       || ( BUTTON_PRESSED == eButtonJoyPush )
+       || ( BUTTON_PRESSED == eButtonJoyUp )
+       || ( BUTTON_PRESSED == eButtonJoyDown )
+       || ( BUTTON_PRESSED == eButtonJoyLeft )
+       || ( BUTTON_PRESSED == eButtonJoyRight ) )
       {
-        gsTimeStructure.Hours -= 24u;
-        gsDateStructure.WeekDay += 1u;
-        gsDateStructure.Date += 1u;
+        geClockState = CLOCKTASK_STATE_DISPLAY;
+        Buzzer_Alarm( BUZZER_ALARMMODE_NONE );
       }
-      if( gsDateStructure.WeekDay > 7u )
-      {
-        gsDateStructure.WeekDay -= 7u;
-      }
-#warning "FIXME: is this the right way?"
-      if( gsDateStructure.Date >= 31u )
-      {
-        gsDateStructure.Date -= 31u;
-        gsDateStructure.Month += 1u;
-      }
-      if( gsDateStructure.Month >= 12u )
-      {
-        gsDateStructure.Month -= 12u;
-        gsDateStructure.Year += 1u;
-      }
-      // Update the time/date
-      HAL_PWR_EnableBkUpAccess();
-      __HAL_RTC_WRITEPROTECTION_DISABLE(&hrtc);
-      HAL_RTC_SetTime( &hrtc, &gsTimeStructure, RTC_FORMAT_BIN );
-      HAL_Delay( 5u );
-      HAL_RTC_SetDate( &hrtc, &gsDateStructure, RTC_FORMAT_BIN );
-      __HAL_RTC_WRITEPROTECTION_ENABLE(&hrtc);
-      HAL_PWR_DisableBkUpAccess();
-    }
-    else
-    {
-      // Nothing to do
-    }
-  }
-  
-  // Blink the current value to be set on screen
-  if( TRUE == bSetTime )
-  {
-    if( u32CurrentTick - u32BlinkTimer >= 1000u )
-    {
-      u32BlinkTimer = u32CurrentTick;
-    }
-    if( u32CurrentTick - u32BlinkTimer < 200u )
-    {
-      // Mask out the value
-      gabDisplayPartOn[ (U8)eState ] = FALSE;
-    }
-    else
-    {
-      gabDisplayPartOn[ (U8)eState ] = TRUE;
-    }
-  }
-
-  // Middle button
-  if( BUTTON_PRESSED == eButtonMiddle )
-  {
-    // If we're setting the time and date
-    if( TRUE == bSetTime )
-    {
-      switch( eState )
-      {
-        case STATE_SET_HOUR:
-          gsTimeStructure.Hours -= 1u;
-          break;
-
-        case STATE_SET_MINUTES:
-          gsTimeStructure.Minutes -= 1u;
-          break;
-
-        case STATE_SET_SECONDS:
-          if( gsTimeStructure.Seconds >= 30u )
-          {
-            gsTimeStructure.Minutes += 1u;
-          }
-          gsTimeStructure.Seconds = 0u;
-          gsTimeStructure.SubSeconds = 0u;
-          break;
-
-        case STATE_SET_YEAR:
-          gsDateStructure.Year -= 1u;
-          break;
-
-        case STATE_SET_MONTH:
-          gsDateStructure.Month -= 1u;
-          break;
-
-        case STATE_SET_DAY:
-          gsDateStructure.Date -= 1u;
-          break;
-
-        case STATE_SET_WEEKDAY:
-          gsDateStructure.WeekDay -= 1u;
-          break;
-
-        case STATE_SET_DST:
-          gbDaylightSavingTime = (TRUE == gbDaylightSavingTime) ? FALSE : TRUE;
-          if( TRUE == gbDaylightSavingTime )
-          {
-            gsTimeStructure.DayLightSaving = RTC_CR_ADD1H | RTC_CR_BKP;
-          }
-          else
-          {
-            gsTimeStructure.DayLightSaving = RTC_CR_SUB1H;
-          }
-          break;
-
-        default:
-          //TODO: error handler
-          break;
-      }
-      //Check for validity and adjust format
-      if( gsTimeStructure.Minutes >= 60u )
-      {
-        gsTimeStructure.Minutes += 60u;
-        gsTimeStructure.Hours -= 1u;
-      }
-      if( gsTimeStructure.Hours >= 24u )
-      {
-        gsTimeStructure.Hours += 24u;
-        gsDateStructure.WeekDay -= 1u;
-        gsDateStructure.Date -= 1u;
-      }
-      if( gsDateStructure.WeekDay > 7u )
-      {
-        gsDateStructure.WeekDay += 7u;
-      }
-#warning "FIXME: is this the right way?"
-      if( gsDateStructure.Date >= 31u )
-      {
-        gsDateStructure.Date += 31u;
-        gsDateStructure.Month -= 1u;
-      }
-      if( gsDateStructure.Month >= 12u )
-      {
-        gsDateStructure.Month += 12u;
-        gsDateStructure.Year -= 1u;
-      }
-      // Update the time/date
-      HAL_PWR_EnableBkUpAccess();
-      __HAL_RTC_WRITEPROTECTION_DISABLE(&hrtc);
-      HAL_RTC_SetTime( &hrtc, &gsTimeStructure, RTC_FORMAT_BIN );
-      HAL_Delay( 5u );
-      HAL_RTC_SetDate( &hrtc, &gsDateStructure, RTC_FORMAT_BIN );
-      __HAL_RTC_WRITEPROTECTION_ENABLE(&hrtc);
-      HAL_PWR_DisableBkUpAccess();
-    }
-    else
-    {
-      // Enter deep sleep
-      Housekeeping_DeepSleep();
-    }
-  }
-
-  // Joystick push: go to the menu
-  if( BUTTON_PRESSED == Buttons_GetEvent( BUTTON_SW4_PUSH ) )
-  {
-    Tasks_EndTask();
+      break;
+      
+    case CLOCKTASK_STATE_ALARM_SET:  // Set alarm
+      //TODO: implement function
+      break;
+      
+    default:  // This should not happen
+      //TODO: error handling
+      geClockState = CLOCKTASK_STATE_DISPLAY;
+      break;
   }
 }
 
@@ -659,6 +739,9 @@ void Task_Clock_Init( void )
   {
     gabDisplayPartOn[ u8Index ] = TRUE;
   }
+  
+  // Start from the clock display state
+  geClockState = CLOCKTASK_STATE_DISPLAY;
 
   // We don't need the repeated press function for buttons normally
   Buttons_SetRepeatedPresses( BUTTON_SW1, FALSE );
@@ -702,15 +785,22 @@ void Task_Clock_Cycle( void )
 }
 
 /*! *******************************************************************
- * \brief
- * \param
- * \return
+ * \brief  Interrupt handler for alarm event
+ * \param  -
+ * \return -
  *********************************************************************/
+void Task_Clock_AlarmIT( void )
+{
+  Tasks_Change( (PFN_TASK_FUNCTION)Task_Clock_Init, (PFN_TASK_FUNCTION)Task_Clock_Cycle );
+  Buzzer_Alarm( BUZZER_ALARMMODE_NORMAL );
+  geClockState = CLOCKTASK_STATE_ALARM;
+}
 
 /*! *******************************************************************
  * \brief
  * \param
  * \return
  *********************************************************************/
+
 
 //-----------------------------------------------< EOF >--------------------------------------------------/
