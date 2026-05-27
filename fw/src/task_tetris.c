@@ -74,6 +74,7 @@ static void RollNewTetroid( void );
 static BOOL CheckPlayfieldHit( void );
 static void RotateTetroid( BOOL bClockWise );
 static void DrawTetroid( I8 i8X, I8 i8Y, U16 u16Color );
+static void RedrawPlayfield( void );
 
 
 //--------------------------------------------------------------------------------------------------------/
@@ -153,6 +154,7 @@ static void FixTetroid( void )
       }
       u32ScoreIncrease *= 10;
       Buzzer_Beep( 3100u, 127u, 100u );  //FIXME: proper chime instead of just one note
+      RedrawPlayfield();
     }
     else  // if it's not full, then we have nothing to do
     {
@@ -376,6 +378,32 @@ static void DrawTetroid( I8 i8X, I8 i8Y, U16 u16Color )
     }
   }
 
+}
+
+/*! *******************************************************************
+ * \brief  Redraws the playfield
+ * \param  -
+ * \return -
+ *********************************************************************/
+static void RedrawPlayfield( void )
+{
+  U8 u8IndexX, u8IndexY;
+  
+  // Draw playfield blocks
+  for( u8IndexX = 0; u8IndexX < PLAYFIELD_SIZE_X; u8IndexX++ )
+  {
+    for( u8IndexY = 0; u8IndexY < PLAYFIELD_SIZE_Y; u8IndexY++ )
+    {
+      if( TRUE == gabBlocks[ u8IndexX ][ u8IndexY ] )
+      {
+        DrawBlock( u8IndexX, u8IndexY, WHITE );
+      }
+      else
+      {
+        DrawBlock( u8IndexX, u8IndexY, BLACK );
+      }
+    }
+  }
 }
 
 /*! *******************************************************************
