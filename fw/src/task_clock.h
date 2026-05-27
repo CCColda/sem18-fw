@@ -27,6 +27,12 @@
 //--------------------------------------------------------------------------------------------------------/
 // Types
 //--------------------------------------------------------------------------------------------------------/
+//! \brief Alarm event type
+typedef enum
+{
+  TASK_CLOCK_ALARM_A,  //!< RTC alarm A caused the event
+  TASK_CLOCK_ALARM_B   //!< RTC alarm B caused the event
+} E_TASK_CLOCK_ALARM_TYPE;
 
 
 //--------------------------------------------------------------------------------------------------------/
@@ -39,7 +45,7 @@
 //--------------------------------------------------------------------------------------------------------/
 void Task_Clock_Init( void );
 void Task_Clock_Cycle( void );
-void Task_Clock_AlarmIT( void );
+void Task_Clock_AlarmIT( E_TASK_CLOCK_ALARM_TYPE eEvent );
 
 
 #endif  // TASK_CLOCK_H

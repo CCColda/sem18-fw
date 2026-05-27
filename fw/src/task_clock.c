@@ -84,6 +84,13 @@ static BOOL gbDaylightSavingTime;
 //! \note  Indexed by E_STATE_SET values
 static BOOL gabDisplayPartOn[ NUMBEROF_STATE_SET_ELEMENTS ];
 
+//! \brief Timer for short wakeup after an alarm
+static volatile struct
+{
+  BOOL bEnabled;    //!< Is it enabled or not
+  U32  u32TimerMs;  //!< Reset time ms when the timer expires
+} gsWakeupTimer = { FALSE, 0u };
+
 //! \brief Current function of the clock task
 static E_CLOCKTASK_STATE geClockState;
 
@@ -609,6 +616,29 @@ static void CheckButtons( void )
   E_BUTTONS_EVENT eButtonJoyRight = Buttons_GetEvent( BUTTON_SW4_RIGHT );
   U32 u32CurrentTick = HAL_GetTick();
   
+  // Common in all modes except for alarm: 
+  if( ( TRUE == gsWakeupTimer.bEnabled )
+   && ( CLOCKTASK_STATE_ALARM != geClockState ) )
+  {
+    if( (I32)( gsWakeupTimer.u32TimerMs - u32CurrentTick ) < 0 )  // if timer expired
+    {
+      // Deep sleep
+      Housekeeping_DeepSleep();
+    }
+    // Any button pressed will cancel the timer
+    if( ( BUTTON_PRESSED == eButtonTop )
+     || ( BUTTON_PRESSED == eButtonMiddle )
+     || ( BUTTON_PRESSED == eButtonBottom )
+     || ( BUTTON_PRESSED == eButtonJoyPush )
+     || ( BUTTON_PRESSED == eButtonJoyUp )
+     || ( BUTTON_PRESSED == eButtonJoyDown )
+     || ( BUTTON_PRESSED == eButtonJoyLeft )
+     || ( BUTTON_PRESSED == eButtonJoyRight ) )
+    {
+      gsWakeupTimer.bEnabled = FALSE;
+    }
+  }
+  
   // Act differently according to functional state
   switch( geClockState )
   {
@@ -645,6 +675,40 @@ static void CheckButtons( void )
         Buttons_SetRepeatedPresses( BUTTON_SW2, TRUE );
         Buttons_SetRepeatedPresses( BUTTON_SW3, TRUE );
       }
+      // Bottom button: change function mode
+      if( BUTTON_PRESSED == eButtonBottom )
+      {
+        //FIXME: placeholder
+        static BOOL bAlarmSet = FALSE;
+        if( FALSE == bAlarmSet )
+        {
+          bAlarmSet = TRUE;
+          // Get the current time from RTC
+          HAL_RTC_GetTime( &hrtc, &gsTimeStructure, RTC_FORMAT_BIN );
+          // Get the current date from RTC
+          HAL_RTC_GetDate( &hrtc, &gsDateStructure, RTC_FORMAT_BIN );
+          RTC_AlarmTypeDef sAlarm;
+          sAlarm.Alarm = RTC_ALARM_B;
+          sAlarm.AlarmDateWeekDay = gsDateStructure.WeekDay;
+          sAlarm.AlarmDateWeekDaySel = RTC_ALARMDATEWEEKDAYSEL_WEEKDAY;
+          sAlarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_HOURS | RTC_ALARMMASK_MINUTES;
+          sAlarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_NONE;
+          gsTimeStructure.Minutes = 0u;  // alarm in every hour
+          gsTimeStructure.Seconds = 0u;  // alarm in every hour
+          gsTimeStructure.SubSeconds = 0u;
+          sAlarm.AlarmTime = gsTimeStructure;
+          sAlarm.SubSeconds = 0u;
+          HAL_RTC_SetAlarm_IT( &hrtc, &sAlarm, RTC_FORMAT_BIN );
+          Buzzer_Beep( 2000u, 128u, 50u );
+        }
+        else
+        {
+          bAlarmSet = FALSE;
+          HAL_RTC_DeactivateAlarm( &hrtc, RTC_ALARM_A );
+          HAL_RTC_DeactivateAlarm( &hrtc, RTC_ALARM_B );
+          Buzzer_Beep( 3000u, 128u, 50u );
+        }
+      }
       break;
       
     case CLOCKTASK_STATE_SET:  // Set the current time and date
@@ -680,7 +744,7 @@ static void CheckButtons( void )
       break;
       
     case CLOCKTASK_STATE_ALARM:  // Sound the alarm
-      // Any button exits the alarm mode
+      // Any button press exits the alarm mode
       if( ( BUTTON_PRESSED == eButtonTop )
        || ( BUTTON_PRESSED == eButtonMiddle )
        || ( BUTTON_PRESSED == eButtonBottom )
@@ -691,6 +755,7 @@ static void CheckButtons( void )
        || ( BUTTON_PRESSED == eButtonJoyRight ) )
       {
         geClockState = CLOCKTASK_STATE_DISPLAY;
+        gsWakeupTimer.u32TimerMs = u32CurrentTick + 3000u;
         Buzzer_Alarm( BUZZER_ALARMMODE_NONE );
       }
       break;
@@ -752,6 +817,13 @@ void Task_Clock_Init( void )
   Buttons_SetRepeatedPresses( BUTTON_SW4_LEFT, FALSE );
   Buttons_SetRepeatedPresses( BUTTON_SW4_RIGHT, FALSE );
   Buttons_SetRepeatedPresses( BUTTON_SW4_PUSH, FALSE );
+  
+  // Check if RTC caused the latest wakeup or not
+  if( __HAL_PWR_GET_FLAG( PWR_FLAG_WUFI ) )
+  {
+    gsWakeupTimer.bEnabled = TRUE;
+    gsWakeupTimer.u32TimerMs = HAL_GetTick() + 3000u;  // Turn on for 5 sec only
+  }
 }
 
 /*! *******************************************************************
@@ -786,14 +858,22 @@ void Task_Clock_Cycle( void )
 
 /*! *******************************************************************
  * \brief  Interrupt handler for alarm event
- * \param  -
+ * \param  eEvent: which RTC alarm caused the event
  * \return -
  *********************************************************************/
-void Task_Clock_AlarmIT( void )
+void Task_Clock_AlarmIT( E_TASK_CLOCK_ALARM_TYPE eEvent )
 {
-  Tasks_Change( (PFN_TASK_FUNCTION)Task_Clock_Init, (PFN_TASK_FUNCTION)Task_Clock_Cycle );
-  Buzzer_Alarm( BUZZER_ALARMMODE_NORMAL );
-  geClockState = CLOCKTASK_STATE_ALARM;
+  // Normal alarm
+  if( TASK_CLOCK_ALARM_A == eEvent )
+  {
+    Tasks_Change( (PFN_TASK_FUNCTION)Task_Clock_Init, (PFN_TASK_FUNCTION)Task_Clock_Cycle );
+    Buzzer_Alarm( BUZZER_ALARMMODE_NORMAL );
+    geClockState = CLOCKTASK_STATE_ALARM;
+  }
+  else if( TASK_CLOCK_ALARM_B == eEvent )  // hourly chime
+  {
+    Buzzer_Alarm( BUZZER_ALARMMODE_TWOBEEPS );
+  }
 }
 
 /*! *******************************************************************

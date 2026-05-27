@@ -36,6 +36,7 @@
 #include "housekeeping.h"
 #include "lcd.h"
 #include "tasks.h"
+#include "task_clock.h"
 
 /* USER CODE END Includes */
 
@@ -136,6 +137,16 @@ int main(void)
     // System tasks
     Housekeeping_Cycle();
     Buzzer_Cycle();
+    
+    // RTC alarms check
+    if( HAL_OK == HAL_RTC_PollForAlarmAEvent( &hrtc, 0u ) )
+    {
+      Task_Clock_AlarmIT( TASK_CLOCK_ALARM_A );
+    }
+    if( HAL_OK == HAL_RTCEx_PollForAlarmBEvent( &hrtc, 0u ) )
+    {
+      Task_Clock_AlarmIT( TASK_CLOCK_ALARM_B );
+    }
     
     // Program tasks
     Tasks_Cycle();
