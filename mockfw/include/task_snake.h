@@ -22,7 +22,17 @@
 //--------------------------------------------------------------------------------------------------------/
 // Definitions
 //--------------------------------------------------------------------------------------------------------/
-
+#define SNAKE_GRID_WIDTH           (20u)
+#define SNAKE_GRID_HEIGHT          (11u)
+#define SNAKE_MOVE_INTERVAL_MS     (200u)
+#define SNAKE_INITIAL_LENGTH       (3u)
+#define SNAKE_MAX_FOOD             (3u)
+#define SNAKE_HEAD_COLOR           (GREEN)
+#define SNAKE_BODY_COLOR           (LIGHTGREEN)
+#define SNAKE_FOOD_COLOR           (RED)
+#define SNAKE_BACKGROUND_COLOR     (BLACK)
+#define SNAKE_TEXT_COLOR           (WHITE)
+#define SNAKE_OVERLAY_COLOR        (GRAYBLUE)
 
 //--------------------------------------------------------------------------------------------------------/
 // Types

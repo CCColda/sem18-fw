@@ -30,10 +30,9 @@ void Buttons_TimerIT(void)
 {
   SDL_Backend_PollEvents();
 
-  for (int i = 0; i < NUM_BUTTONS; i++)
+  for (unsigned int i = 0; i < NUM_BUTTONS; i++)
   {
     BOOL pressed = SDL_Backend_IsKeyDown((E_BUTTONS_INDEX)i);
-    BOOL prev = gPrevState[i];
 
     switch (gaeButtonsState[i])
     {
@@ -41,13 +40,11 @@ void Buttons_TimerIT(void)
         if (pressed)
         {
           gaeButtonsState[i] = BUTTON_BOUNCING;
-          printf("inactive->bouncing %d\n", i);
         }
         break;
 
       case BUTTON_BOUNCING:
         gaeButtonsState[i] = pressed ? BUTTON_ACTIVE : BUTTON_INACTIVE;
-        printf("bouncing->in/active %d\n", i);
         break;
 
       case BUTTON_ACTIVE:
@@ -62,7 +59,6 @@ void Buttons_TimerIT(void)
         break;
     }
 
-    prev = pressed;
     gPrevState[i] = pressed;
   }
 }

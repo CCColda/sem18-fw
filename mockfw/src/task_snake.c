@@ -1,36 +1,39 @@
+/*! *******************************************************************************************************
+* Copyright (c) 2026 T. Szilagyi
+*
+* All rights reserved
+*
+* \file task_snake.c
+*
+* \brief Snake game
+*
+* \author T. Szilagyi
+*
+**********************************************************************************************************/
+
+//--------------------------------------------------------------------------------------------------------/
+// Include files
+//--------------------------------------------------------------------------------------------------------/
+
 #include "task_snake.h"
 
 #include "lcd.h"
 #include "buttons.h"
 #include "stm32f4xx_hal.h"
 
-#include <stdio.h>
-
-extern void QuitTask(void);
-
-#ifndef NULL
-#define NULL ((void*)0)
-#endif
-
-#define DISPLAY_WIDTH              (240u)
-#define DISPLAY_HEIGHT             (135u)
-
-#define SNAKE_GRID_WIDTH           (20u)
-#define SNAKE_GRID_HEIGHT          (11u)
+//--------------------------------------------------------------------------------------------------------/
+// Definitions
+//--------------------------------------------------------------------------------------------------------/
 
 #define SNAKE_CELL_SIZE            (12u)
 
 #define GRID_PIXEL_WIDTH           (SNAKE_GRID_WIDTH * SNAKE_CELL_SIZE)
 #define GRID_PIXEL_HEIGHT          (SNAKE_GRID_HEIGHT * SNAKE_CELL_SIZE)
 
-#define GRID_OFFSET_X              ((DISPLAY_WIDTH - GRID_PIXEL_WIDTH) / 2u)
-#define GRID_OFFSET_Y              ((DISPLAY_HEIGHT - GRID_PIXEL_HEIGHT) / 2u)
+#define GRID_OFFSET_X              ((LCD_WIDTH - GRID_PIXEL_WIDTH) / 2u)
+#define GRID_OFFSET_Y              ((LCD_HEIGHT - GRID_PIXEL_HEIGHT) / 2u)
 
-#define SNAKE_MOVE_INTERVAL_MS     (200u)
-
-#define SNAKE_INITIAL_LENGTH       (3u)
 #define SNAKE_MAX_LENGTH           (SNAKE_GRID_WIDTH * SNAKE_GRID_HEIGHT)
-#define SNAKE_MAX_FOOD             (3u)
 
 #define SCORE_TEXT_X               (170u)
 #define SCORE_TEXT_Y               (2u)
@@ -41,6 +44,10 @@ extern void QuitTask(void);
 #define OVERLAY_BOX_H              (65u)
 
 #define ARRAY_SIZE(x)              (sizeof(x) / sizeof((x)[0]))
+
+//--------------------------------------------------------------------------------------------------------/
+// Types
+//--------------------------------------------------------------------------------------------------------/
 
 typedef enum
 {
@@ -85,6 +92,12 @@ typedef struct
 
 static S_GAME_CONTEXT g_sGame;
 
+//--------------------------------------------------------------------------------------------------------/
+// Static function declarations
+//--------------------------------------------------------------------------------------------------------/
+
+extern void QuitTask(void);
+
 static void Game_Init(S_GAME_CONTEXT* psGame);
 static void Game_Reset(S_GAME_CONTEXT* psGame);
 static void Game_Update(S_GAME_CONTEXT* psGame);
@@ -109,13 +122,18 @@ static void Snake_RemoveFood(S_GAME_CONTEXT* psGame, U8 u8Index);
 
 static void UIntToString(U16 u16Value, char* pcBuffer);
 
+//--------------------------------------------------------------------------------------------------------/
+// Static functions
+//--------------------------------------------------------------------------------------------------------/
+
+
 void Task_Snake_Init(void)
 {
   Buttons_SetRepeatedPresses(FALSE);
 
   Game_Init(&g_sGame);
 
-  LCD_Clear(BLACK);
+  LCD_Clear(SNAKE_BACKGROUND_COLOR);
   Graphics_DrawMainMenu();
 }
 
@@ -136,7 +154,7 @@ static void Game_Reset(S_GAME_CONTEXT* psGame)
   I16 i16CenterX;
   I16 i16CenterY;
 
-  LCD_Clear(BLACK);
+  LCD_Clear(SNAKE_BACKGROUND_COLOR);
 
   memset(psGame->asSnake, 0, sizeof(psGame->asSnake));
   memset(psGame->asFood, 0, sizeof(psGame->asFood));
@@ -165,7 +183,7 @@ static void Game_Reset(S_GAME_CONTEXT* psGame)
 
   psGame->u32LastMoveTick = HAL_GetTick();
 
-  LCD_Clear(BLACK);
+  LCD_Clear(SNAKE_BACKGROUND_COLOR);
   Graphics_DrawFullGame(psGame);
 }
 
@@ -270,7 +288,6 @@ static void Game_Update(S_GAME_CONTEXT* psGame)
 
       if(!bGrow)
       {
-        printf("drawing empty at %d %d\n", psGame->asSnake[psGame->u16SnakeLength - 1u].i16X, psGame->asSnake[psGame->u16SnakeLength - 1u].i16Y);
         Graphics_DrawEmpty(psGame->asSnake[psGame->u16SnakeLength - 1u].i16X,
                            psGame->asSnake[psGame->u16SnakeLength - 1u].i16Y);
       }
@@ -375,22 +392,22 @@ static void Graphics_DrawCell(I16 i16GridX, I16 i16GridY, U16 u16Color)
 
 static void Graphics_DrawSnakeHead(I16 i16GridX, I16 i16GridY)
 {
-  Graphics_DrawCell(i16GridX, i16GridY, GREEN);
+  Graphics_DrawCell(i16GridX, i16GridY, SNAKE_HEAD_COLOR);
 }
 
 static void Graphics_DrawSnakeBody(I16 i16GridX, I16 i16GridY)
 {
-  Graphics_DrawCell(i16GridX, i16GridY, LIGHTGREEN);
+  Graphics_DrawCell(i16GridX, i16GridY, SNAKE_BODY_COLOR);
 }
 
 static void Graphics_DrawFood(I16 i16GridX, I16 i16GridY)
 {
-  Graphics_DrawCell(i16GridX, i16GridY, RED);
+  Graphics_DrawCell(i16GridX, i16GridY, SNAKE_FOOD_COLOR);
 }
 
 static void Graphics_DrawEmpty(I16 i16GridX, I16 i16GridY)
 {
-  Graphics_DrawCell(i16GridX, i16GridY, BLACK);
+  Graphics_DrawCell(i16GridX, i16GridY, SNAKE_BACKGROUND_COLOR);
 }
 
 static void Graphics_DrawFullGame(const S_GAME_CONTEXT* psGame)
@@ -435,9 +452,9 @@ static void Graphics_DrawScore(U16 u16OldScore, U16 u16NewScore)
 
   for(u16Y = SCORE_TEXT_Y; u16Y < (SCORE_TEXT_Y + 10u); u16Y++)
   {
-    for(u16X = SCORE_TEXT_X; u16X < DISPLAY_WIDTH; u16X++)
+    for(u16X = SCORE_TEXT_X; u16X < LCD_WIDTH; u16X++)
     {
-      LCD_Pixel((U8)u16X, (U8)u16Y, BLACK);
+      LCD_Pixel((U8)u16X, (U8)u16Y, SNAKE_BACKGROUND_COLOR);
     }
   }
 
@@ -447,20 +464,20 @@ static void Graphics_DrawScore(U16 u16OldScore, U16 u16NewScore)
                   SCORE_TEXT_Y,
                   acBuffer,
                   LCD_FONT_7x10,
-                  WHITE,
-                  BLACK);
+                  SNAKE_TEXT_COLOR,
+                  SNAKE_BACKGROUND_COLOR);
 }
 
 static void Graphics_DrawMainMenu(void)
 {
-  LCD_Clear(BLACK);
+  LCD_Clear(SNAKE_BACKGROUND_COLOR);
 
   LCD_PrintString(80u,
                   25u,
                   "Snake",
                   LCD_FONT_16x26,
                   GREEN,
-                  BLACK);
+                  SNAKE_BACKGROUND_COLOR);
 
   LCD_DrawFilledRectangle(70u,
                           70u,
@@ -472,22 +489,22 @@ static void Graphics_DrawMainMenu(void)
                   78u,
                   "Play",
                   LCD_FONT_11x18,
-                  BLACK,
+                  SNAKE_BACKGROUND_COLOR,
                   GREEN);
 
   LCD_PrintString(20u,
                   118u,
                   "LEFT = Quit",
                   LCD_FONT_7x10,
-                  WHITE,
-                  BLACK);
+                  SNAKE_TEXT_COLOR,
+                  SNAKE_BACKGROUND_COLOR);
 
   LCD_PrintString(120u,
                   118u,
                   "PUSH = Start",
                   LCD_FONT_7x10,
-                  WHITE,
-                  BLACK);
+                  SNAKE_TEXT_COLOR,
+                  SNAKE_BACKGROUND_COLOR);
 }
 
 static void Graphics_DrawOverlay(const char* pcTitle)
@@ -496,28 +513,28 @@ static void Graphics_DrawOverlay(const char* pcTitle)
                           OVERLAY_BOX_Y,
                           OVERLAY_BOX_X + OVERLAY_BOX_W,
                           OVERLAY_BOX_Y + OVERLAY_BOX_H,
-                          GRAYBLUE);
+                          SNAKE_OVERLAY_COLOR);
 
   LCD_PrintString(OVERLAY_BOX_X + 20u,
                   OVERLAY_BOX_Y + 10u,
                   pcTitle,
                   LCD_FONT_11x18,
-                  WHITE,
-                  GRAYBLUE);
+                  SNAKE_TEXT_COLOR,
+                  SNAKE_OVERLAY_COLOR);
 
   LCD_PrintString(OVERLAY_BOX_X + 10u,
                   OVERLAY_BOX_Y + 38u,
                   "PUSH = Continue",
                   LCD_FONT_7x10,
-                  WHITE,
-                  GRAYBLUE);
+                  SNAKE_TEXT_COLOR,
+                  SNAKE_OVERLAY_COLOR);
 
   LCD_PrintString(OVERLAY_BOX_X + 10u,
                   OVERLAY_BOX_Y + 50u,
                   "LEFT = Quit",
                   LCD_FONT_7x10,
-                  WHITE,
-                  GRAYBLUE);
+                  SNAKE_TEXT_COLOR,
+                  SNAKE_OVERLAY_COLOR);
 }
 
 static void Input_UpdateDirection(S_GAME_CONTEXT* psGame)
