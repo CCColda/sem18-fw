@@ -42,6 +42,16 @@
 //--------------------------------------------------------------------------------------------------------/
 // Types
 //--------------------------------------------------------------------------------------------------------/
+//! \brief Functions of the clock task
+typedef enum
+{
+  CLOCKTASK_STATE_DISPLAY = 0u,    //!< Display the current time and date
+  CLOCKTASK_STATE_SET,             //!< Set the current time and date
+  CLOCKTASK_STATE_ALARM_LIST,      //!< List the available alarms and their current settings
+  CLOCKTASK_STATE_ALARM_SET,       //!< Set the alarm
+  CLOCKTASK_STATE_ALARM,           //!< Sound the alarm
+} E_CLOCKTASK_STATE;
+
 //! \brief States of the clock settings state machine
 //! \note  Must start from 0 and increase by 1.
 typedef enum
@@ -58,14 +68,15 @@ typedef enum
   NUMBEROF_STATE_SET_ELEMENTS
 } E_STATE_SET;
 
-//! \brief Functions of the clock task
+//! \brief States of the alarm settings state machine
+//! \note  Must start from 0 and increase by 1.
 typedef enum
 {
-  CLOCKTASK_STATE_DISPLAY = 0u,    //!< Display the current time and date
-  CLOCKTASK_STATE_SET,             //!< Set the current time and date
-  CLOCKTASK_STATE_ALARM_SET,       //!< Set the alarm
-  CLOCKTASK_STATE_ALARM,           //!< Sound the alarm
-} E_CLOCKTASK_STATE;
+  STATE_ALARM_SET_HOUR = 0u,
+  STATE_ALARM_SET_MINUTES,
+  //
+  NUMBEROF_STATE_ALARM_SET_ELEMENTS
+} E_STATE_ALARM_SET;
 
 
 //--------------------------------------------------------------------------------------------------------/
@@ -84,6 +95,22 @@ static BOOL gbDaylightSavingTime;
 //! \note  Indexed by E_STATE_SET values
 static BOOL gabDisplayPartOn[ NUMBEROF_STATE_SET_ELEMENTS ];
 
+//! \brief Which clock/date value are we changing right now
+static E_STATE_SET geClockSetState;
+
+//! \brief RTC Alarm A
+static RTC_AlarmTypeDef gsAlarmA;
+
+//! \brief RTC Alarm B
+static RTC_AlarmTypeDef gsAlarmB;
+
+//! \brief Which parts of the alarm settings should be displayed
+//! \note  Indexed by E_STATE_ALARM_SET values
+static BOOL gabAlarmSetPartOn[ NUMBEROF_STATE_ALARM_SET_ELEMENTS ];
+
+//! \brief Which alarm value are we changing right now
+static E_STATE_ALARM_SET geAlarmSetState;
+
 //! \brief Timer for short wakeup after an alarm
 static volatile struct
 {
@@ -93,9 +120,6 @@ static volatile struct
 
 //! \brief Current function of the clock task
 static E_CLOCKTASK_STATE geClockState;
-
-//! \brief Which clock/date value are we changing right now
-static E_STATE_SET geClockSetState;
 
 
 //--------------------------------------------------------------------------------------------------------/
@@ -107,8 +131,11 @@ static void DrawSegment( BOOL bHorizontal, U16 u16X0, U16 u16Y0, U16 u16X1, U16 
 static void Draw7Segment( U8 u8Number, U16 u16X0, U16 u16Y0, U16 u16WidthPx, U16 u16Color );
 static void PrintClock( U16 u16X, U16 u16Y );
 static void PrintDate( U16 u16X, U16 u16Y );
+static void PrintAlarms( U16 u16X, U16 u16Y );
 static void IncrementTimeOrDate( void );
 static void DecrementTimeOrDate( void );
+static void IncrementAlarm( RTC_TimeTypeDef* psTimeDefinition );
+static void DecrementAlarm( RTC_TimeTypeDef* psTimeDefinition );
 static void CheckButtons( void );
 
 
@@ -147,7 +174,6 @@ static void RefreshDisplay( void )
         gabDisplayPartOn[ (U8)geClockSetState ] = TRUE;
       }
       //NOTE: intentional fall-through!
-      
     case CLOCKTASK_STATE_DISPLAY:
     case CLOCKTASK_STATE_ALARM:  // Clock is displayed normally in alarm mode
       // Display clock in the middle of the screen
@@ -157,7 +183,24 @@ static void RefreshDisplay( void )
       break;
       
     case CLOCKTASK_STATE_ALARM_SET:
-      //TODO: implement function
+      // Blink the current value to be set on screen
+      if( u32CurrentTick - u32BlinkTimer >= 1000u )
+      {
+        u32BlinkTimer = u32CurrentTick;
+      }
+      if( u32CurrentTick - u32BlinkTimer < 200u )
+      {
+        // Mask out the value
+        gabAlarmSetPartOn[ (U8)geAlarmSetState ] = FALSE;
+      }
+      else
+      {
+        gabAlarmSetPartOn[ (U8)geAlarmSetState ] = TRUE;
+      }
+      //NOTE: intentional fall-through!
+    case CLOCKTASK_STATE_ALARM_LIST:
+      // Display alarm settings in the middle of the screen
+      PrintAlarms( (LCD_WIDTH/2u)-(7*SEGMENTS_WIDTH/2u), (LCD_HEIGHT*0.6)-SEGMENTS_WIDTH );
       break;
       
     default:
@@ -405,6 +448,46 @@ static void PrintDate( U16 u16X, U16 u16Y )
 }
 
 /*! *******************************************************************
+ * \brief  Prints the alarm settings to a given position
+ * \param  u16X: horizontal coordinate of the upper left corner
+ * \param  u16Y: vertical coordinate of the upper left corner
+ * \return -
+ *********************************************************************/
+static void PrintAlarms( U16 u16X, U16 u16Y )
+{
+  // Clear display
+  LCD_DrawFilledRectangle( u16X, u16Y, u16X+(U16)(SEGMENTS_WIDTH*6.6), u16Y+2*SEGMENTS_WIDTH, COLOR_BG );
+
+  // Draw hours
+  if( TRUE == gabAlarmSetPartOn[ STATE_ALARM_SET_HOUR ] )
+  {
+    Draw7Segment( gsAlarmA.AlarmTime.Hours/10u, u16X, u16Y, SEGMENTS_WIDTH, COLOR_INK );
+    Draw7Segment( gsAlarmA.AlarmTime.Hours%10u, u16X+(U16)(SEGMENTS_WIDTH*1.2), u16Y, SEGMENTS_WIDTH, COLOR_INK );
+  }
+  // Draw separator
+  LCD_DrawFilledRectangle( u16X+(U16)(SEGMENTS_WIDTH*2.4), u16Y+(U16)(SEGMENTS_WIDTH*0.45), u16X+(U16)(SEGMENTS_WIDTH*2.5), u16Y+(U16)(SEGMENTS_WIDTH*0.55), COLOR_INK );
+  LCD_DrawFilledRectangle( u16X+(U16)(SEGMENTS_WIDTH*2.4), u16Y+(U16)(SEGMENTS_WIDTH*1.45), u16X+(U16)(SEGMENTS_WIDTH*2.5), u16Y+(U16)(SEGMENTS_WIDTH*1.55), COLOR_INK );
+  // Draw minutes
+  if( TRUE == gabAlarmSetPartOn[ STATE_ALARM_SET_MINUTES ] )
+  {
+    Draw7Segment( gsAlarmA.AlarmTime.Minutes/10u, u16X+(U16)(SEGMENTS_WIDTH*2.7), u16Y, SEGMENTS_WIDTH, COLOR_INK );
+    Draw7Segment( gsAlarmA.AlarmTime.Minutes%10u, u16X+(U16)(SEGMENTS_WIDTH*3.9), u16Y, SEGMENTS_WIDTH, COLOR_INK );
+  }
+  // Draw if the alarm is enabled or not
+  if( __HAL_RTC_ALARM_GET_IT_SOURCE( &hrtc, RTC_IT_ALRA ) )
+  {
+    LCD_PrintString( u16X+(U16)(SEGMENTS_WIDTH*5.5), u16Y, "On", LCD_FONT_11x18, COLOR_INK, COLOR_BG );
+  }
+  else
+  {
+    LCD_PrintString( u16X+(U16)(SEGMENTS_WIDTH*5.5), u16Y, "Off", LCD_FONT_11x18, COLOR_INK, COLOR_BG );
+  }
+  
+  // Clear the date location, as we don't support date-based alarm yet
+  LCD_DrawFilledRectangle( 0u, 0u, 14*11u, 18u, COLOR_BG );
+}
+
+/*! *******************************************************************
  * \brief  Increments the time/date value selected by geClockSetState
  * \param  -
  * \return -
@@ -599,6 +682,82 @@ static void DecrementTimeOrDate( void )
 }
 
 /*! *******************************************************************
+ * \brief  Increments the alarm value selected by geAlarmSetState
+ * \param  psTimeDefinition: pointer to the time information
+ * \return -
+ *********************************************************************/
+static void IncrementAlarm( RTC_TimeTypeDef* psTimeDefinition )
+{
+  // Change one of the values
+  switch( geAlarmSetState )
+  {
+    case STATE_ALARM_SET_HOUR:
+      psTimeDefinition->Hours += 1u;
+      break;
+      
+    case STATE_ALARM_SET_MINUTES:
+      psTimeDefinition->Minutes += 1u;
+      break;
+      
+    default:
+      //TODO: error handler
+      geAlarmSetState = STATE_ALARM_SET_HOUR;
+      break;
+  }
+  //Check for validity and adjust format
+  if( psTimeDefinition->Minutes >= 60u )
+  {
+    psTimeDefinition->Minutes -= 60u;
+    psTimeDefinition->Hours += 1u;
+  }
+  if( psTimeDefinition->Hours >= 24u )
+  {
+    psTimeDefinition->Hours -= 24u;
+    //TODO: if weekday/date is applyable, correct those too
+    //gsDateStructure.WeekDay += 1u;
+    //gsDateStructure.Date += 1u;
+  }
+}
+
+/*! *******************************************************************
+ * \brief  Increments the alarm value selected by geAlarmSetState
+ * \param  psTimeDefinition: pointer to the time information
+ * \return -
+ *********************************************************************/
+static void DecrementAlarm( RTC_TimeTypeDef* psTimeDefinition )
+{
+  // Change one of the values
+  switch( geAlarmSetState )
+  {
+    case STATE_ALARM_SET_HOUR:
+      psTimeDefinition->Hours -= 1u;
+      break;
+      
+    case STATE_ALARM_SET_MINUTES:
+      psTimeDefinition->Minutes -= 1u;
+      break;
+      
+    default:
+      //TODO: error handler
+      geAlarmSetState = STATE_ALARM_SET_HOUR;
+      break;
+  }
+  //Check for validity and adjust format
+  if( psTimeDefinition->Minutes >= 60u )
+  {
+    psTimeDefinition->Minutes += 60u;
+    psTimeDefinition->Hours -= 1u;
+  }
+  if( psTimeDefinition->Hours >= 24u )
+  {
+    psTimeDefinition->Hours += 24u;
+    //TODO: if weekday/date is applyable, correct those too
+    //gsDateStructure.WeekDay -= 1u;
+    //gsDateStructure.Date -= 1u;
+  }
+}
+
+/*! *******************************************************************
  * \brief  Checks the buttons and act accordingly
  * \param  -
  * \return -
@@ -678,36 +837,8 @@ static void CheckButtons( void )
       // Bottom button: change function mode
       if( BUTTON_PRESSED == eButtonBottom )
       {
-        //FIXME: placeholder
-        static BOOL bAlarmSet = FALSE;
-        if( FALSE == bAlarmSet )
-        {
-          bAlarmSet = TRUE;
-          // Get the current time from RTC
-          HAL_RTC_GetTime( &hrtc, &gsTimeStructure, RTC_FORMAT_BIN );
-          // Get the current date from RTC
-          HAL_RTC_GetDate( &hrtc, &gsDateStructure, RTC_FORMAT_BIN );
-          RTC_AlarmTypeDef sAlarm;
-          sAlarm.Alarm = RTC_ALARM_B;
-          sAlarm.AlarmDateWeekDay = gsDateStructure.WeekDay;
-          sAlarm.AlarmDateWeekDaySel = RTC_ALARMDATEWEEKDAYSEL_WEEKDAY;
-          sAlarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_HOURS | RTC_ALARMMASK_MINUTES;
-          sAlarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_NONE;
-          gsTimeStructure.Minutes = 0u;  // alarm in every hour
-          gsTimeStructure.Seconds = 0u;  // alarm in every hour
-          gsTimeStructure.SubSeconds = 0u;
-          sAlarm.AlarmTime = gsTimeStructure;
-          sAlarm.SubSeconds = 0u;
-          HAL_RTC_SetAlarm_IT( &hrtc, &sAlarm, RTC_FORMAT_BIN );
-          Buzzer_Beep( 2000u, 128u, 50u );
-        }
-        else
-        {
-          bAlarmSet = FALSE;
-          HAL_RTC_DeactivateAlarm( &hrtc, RTC_ALARM_A );
-          HAL_RTC_DeactivateAlarm( &hrtc, RTC_ALARM_B );
-          Buzzer_Beep( 3000u, 128u, 50u );
-        }
+        geClockState = CLOCKTASK_STATE_ALARM_LIST;
+        Buzzer_Beep( 2700u, 128u, 50u );
       }
       break;
       
@@ -760,8 +891,97 @@ static void CheckButtons( void )
       }
       break;
       
-    case CLOCKTASK_STATE_ALARM_SET:  // Set alarm
-      //TODO: implement function
+    case CLOCKTASK_STATE_ALARM_LIST:  // List alarms
+      // Top button: long press enters alarm setting function
+      if( BUTTON_PRESSED == eButtonTop )
+      {
+        u32Timer = u32CurrentTick;
+      }
+      else if( BUTTON_RELEASED == eButtonTop )
+      {
+        u32Timer = 0u;
+      }
+      // Check top button timer
+      if( ( 0u != u32Timer )
+       && ( BUTTON_ACTIVE == gaeButtonsState[ BUTTON_SW1 ] )
+       && ( u32CurrentTick - u32Timer > 1000u ) )
+      {
+        // Enter time setting state
+        geClockState = CLOCKTASK_STATE_ALARM_SET;
+        geAlarmSetState = STATE_ALARM_SET_HOUR;
+        u32Timer = 0u;
+        Buzzer_Beep( 2700u, 128u, 50u );
+        Buttons_SetRepeatedPresses( BUTTON_SW2, TRUE );
+        Buttons_SetRepeatedPresses( BUTTON_SW3, TRUE );
+        // Enable alarm
+        gsAlarmA.AlarmDateWeekDaySel = RTC_ALARMDATEWEEKDAYSEL_DATE;
+        gsAlarmA.AlarmTime.Seconds = 0u;
+        gsAlarmA.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY;  // date don't care
+        gsAlarmA.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;  // we don't care for subseconds
+        HAL_RTC_SetAlarm_IT( &hrtc, &gsAlarmA, RTC_FORMAT_BIN );
+      }
+      // Middle button: enable alarm
+      if( BUTTON_PRESSED == eButtonMiddle )
+      {
+        // If it's not yet enabled
+        if( !__HAL_RTC_ALARM_GET_IT_SOURCE( &hrtc, RTC_IT_ALRA ) )
+        {
+          gsAlarmA.AlarmDateWeekDaySel = RTC_ALARMDATEWEEKDAYSEL_DATE;
+          gsAlarmA.AlarmTime.Seconds = 0u;
+          gsAlarmA.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY;  // date don't care
+          gsAlarmA.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;  // we don't care for subseconds
+          HAL_RTC_SetAlarm_IT( &hrtc, &gsAlarmA, RTC_FORMAT_BIN );
+        }
+        else
+        {
+          HAL_RTC_DeactivateAlarm( &hrtc, RTC_ALARM_A );
+          HAL_RTC_DeactivateAlarm( &hrtc, RTC_ALARM_B );
+        }
+      }
+      // Bottom button: change function mode
+      if( BUTTON_PRESSED == eButtonBottom )
+      {
+        geClockState = CLOCKTASK_STATE_DISPLAY;
+        Buzzer_Beep( 3100u, 128u, 50u );  // last functional mode
+      }
+      break;
+      
+    case CLOCKTASK_STATE_ALARM_SET:  // Set the selected alarm
+      // Top button: select which variable to adjust
+      if( BUTTON_PRESSED == eButtonTop )
+      {
+        // If there are other variables to adjust
+        if( geAlarmSetState < STATE_ALARM_SET_MINUTES )
+        {
+          gabAlarmSetPartOn[ (U8)geAlarmSetState ] = TRUE;
+          geAlarmSetState++;
+        }
+        else  // everything is set
+        {
+          geClockState = CLOCKTASK_STATE_ALARM_LIST;  // return to alarm list
+          gabAlarmSetPartOn[ (U8)geAlarmSetState ] = TRUE;
+          Buttons_SetRepeatedPresses( BUTTON_SW2, FALSE );
+          Buttons_SetRepeatedPresses( BUTTON_SW3, FALSE );
+          // Enable alarm
+          gsAlarmA.AlarmDateWeekDaySel = RTC_ALARMDATEWEEKDAYSEL_DATE;
+          gsAlarmA.AlarmTime.Seconds = 0u;
+          gsAlarmA.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY;  // date don't care
+          gsAlarmA.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;  // we don't care for subseconds
+          HAL_RTC_SetAlarm_IT( &hrtc, &gsAlarmA, RTC_FORMAT_BIN );
+        }
+      }
+      // Middle button: decrement value
+      if( BUTTON_PRESSED == eButtonMiddle )
+      {
+        DecrementAlarm( &gsAlarmA.AlarmTime );
+        HAL_RTC_SetAlarm_IT( &hrtc, &gsAlarmA, RTC_FORMAT_BIN );
+      }
+      // Bottom button: increment value
+      if( BUTTON_PRESSED == eButtonBottom )
+      {
+        IncrementAlarm( &gsAlarmA.AlarmTime );
+        HAL_RTC_SetAlarm_IT( &hrtc, &gsAlarmA, RTC_FORMAT_BIN );
+      }
       break;
       
     default:  // This should not happen
@@ -804,6 +1024,10 @@ void Task_Clock_Init( void )
   {
     gabDisplayPartOn[ u8Index ] = TRUE;
   }
+  for( u8Index = 0u; u8Index < sizeof( gabAlarmSetPartOn )/sizeof( BOOL ); u8Index++ )
+  {
+    gabAlarmSetPartOn[ u8Index ] = TRUE;
+  }
   
   // Start from the clock display state
   geClockState = CLOCKTASK_STATE_DISPLAY;
@@ -845,13 +1069,17 @@ void Task_Clock_Cycle( void )
     HAL_RTC_GetTime( &hrtc, &gsTimeStructure, RTC_FORMAT_BIN );
     // Get the current date from RTC
     HAL_RTC_GetDate( &hrtc, &gsDateStructure, RTC_FORMAT_BIN );
+    // Get RTC Alarm A
+    HAL_RTC_GetAlarm( &hrtc, &gsAlarmA, RTC_ALARM_A, RTC_FORMAT_BIN );
+    // Get RTC Alarm B
+    HAL_RTC_GetAlarm( &hrtc, &gsAlarmB, RTC_ALARM_B, RTC_FORMAT_BIN );
     // Get the current DST status
     gbDaylightSavingTime = HAL_RTC_DST_ReadStoreOperation( &hrtc ) ? TRUE : FALSE;
     gsTimeStructure.DayLightSaving = ( TRUE == gbDaylightSavingTime ) ? RTC_CR_BKP : 0u;
     // Update display contents
     RefreshDisplay();
   }
-
+  
   // Check buttons
   CheckButtons();
 }
