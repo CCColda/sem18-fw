@@ -20,7 +20,12 @@
 #include "tasks.h"
 #include "lcd.h"
 #include "buttons.h"
-#include "stm32f4xx_hal.h"
+#include "main.h"
+#include "housekeeping.h"
+#include "types.h"
+
+#include <stdlib.h>
+#include <string.h>
 
 //--------------------------------------------------------------------------------------------------------/
 // Definitions
@@ -128,8 +133,6 @@ static void UIntToString(U16 u16Value, char* pcBuffer);
 
 void Task_Snake_Init(void)
 {
-  Buttons_SetRepeatedPresses(FALSE);
-
   Game_Init(&g_sGame);
 
   LCD_Clear(SNAKE_BACKGROUND_COLOR);
@@ -146,6 +149,7 @@ static void Game_Init(S_GAME_CONTEXT* psGame)
   memset(psGame, 0, sizeof(S_GAME_CONTEXT));
 
   psGame->eState = GAME_STATE_MAIN_MENU;
+  Graphics_DrawMainMenu();
 }
 
 static void Game_Reset(S_GAME_CONTEXT* psGame)
@@ -194,14 +198,12 @@ static void Game_Update(S_GAME_CONTEXT* psGame)
   {
     case GAME_STATE_MAIN_MENU:
     {
-      Graphics_DrawMainMenu();
-
       if(BUTTON_PRESSED == Buttons_GetEvent(BUTTON_SW4_PUSH))
       {
         Game_Reset(psGame);
       }
 
-      if(BUTTON_PRESSED == Buttons_GetEvent(BUTTON_SW4_LEFT))
+      if(BUTTON_PRESSED == Buttons_GetEvent(BUTTON_SW3))
       {
         Tasks_EndTask();
       }
@@ -224,6 +226,11 @@ static void Game_Update(S_GAME_CONTEXT* psGame)
         Graphics_DrawOverlay("Paused");
         return;
       }
+
+      if(BUTTON_PRESSED == Buttons_GetEvent(BUTTON_SW3))
+      {
+        Tasks_EndTask();
+	  }
 
       Input_UpdateDirection(psGame);
 
@@ -340,7 +347,7 @@ static void Game_Update(S_GAME_CONTEXT* psGame)
         Graphics_DrawFullGame(psGame);
       }
 
-      if(BUTTON_PRESSED == Buttons_GetEvent(BUTTON_SW4_LEFT))
+      if(BUTTON_PRESSED == Buttons_GetEvent(BUTTON_SW3))
       {
         Tasks_EndTask();
       }
@@ -356,9 +363,9 @@ static void Game_Update(S_GAME_CONTEXT* psGame)
         Game_Reset(psGame);
       }
 
-      if(BUTTON_PRESSED == Buttons_GetEvent(BUTTON_SW4_LEFT))
+      if(BUTTON_PRESSED == Buttons_GetEvent(BUTTON_SW3))
       {
-        QuitTask();
+        Tasks_EndTask();
       }
 
       break;
@@ -469,8 +476,6 @@ static void Graphics_DrawScore(U16 u16OldScore, U16 u16NewScore)
 
 static void Graphics_DrawMainMenu(void)
 {
-  LCD_Clear(SNAKE_BACKGROUND_COLOR);
-
   LCD_PrintString(80u,
                   25u,
                   "Snake",
@@ -493,7 +498,7 @@ static void Graphics_DrawMainMenu(void)
 
   LCD_PrintString(20u,
                   118u,
-                  "LEFT = Quit",
+                  "Middle = Quit",
                   LCD_FONT_7x10,
                   SNAKE_TEXT_COLOR,
                   SNAKE_BACKGROUND_COLOR);
@@ -530,7 +535,7 @@ static void Graphics_DrawOverlay(const char* pcTitle)
 
   LCD_PrintString(OVERLAY_BOX_X + 10u,
                   OVERLAY_BOX_Y + 50u,
-                  "LEFT = Quit",
+                  "Middle = Quit",
                   LCD_FONT_7x10,
                   SNAKE_TEXT_COLOR,
                   SNAKE_OVERLAY_COLOR);
@@ -634,8 +639,8 @@ static void Snake_SpawnFood(S_GAME_CONTEXT* psGame)
 
   do
   {
-    i16X = (I16)(HAL_RNG_GetRandomNumber() % SNAKE_GRID_WIDTH);
-    i16Y = (I16)(HAL_RNG_GetRandomNumber() % SNAKE_GRID_HEIGHT);
+    i16X = (I16)(rand() % SNAKE_GRID_WIDTH);
+    i16Y = (I16)(rand() % SNAKE_GRID_HEIGHT);
 
     bOccupied = Snake_IsOccupied(psGame, i16X, i16Y);
 
