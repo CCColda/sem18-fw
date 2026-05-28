@@ -1,2 +1,6 @@
 fw/Debug
 fw/.settings
+
+.cache
+compile_commands.json
+

@@ -1,18 +1,18 @@
 /*! *******************************************************************************************************
-* Copyright (c) 2026 K. Sz. Horvath
+* Copyright (c) 2026 T. Szilagyi
 *
 * All rights reserved
 *
-* \file task_clock.h
+* \file task_snake.h
 *
-* \brief Clock task
+* \brief Snake task
 *
-* \author K. Sz. Horvath
+* \author T. Szilagyi
 *
 **********************************************************************************************************/
 
-#ifndef TASK_CLOCK_H
-#define TASK_CLOCK_H
+#ifndef TASK_SNAKE_H
+#define TASK_SNAKE_H
 
 //--------------------------------------------------------------------------------------------------------/
 // Include files
@@ -37,10 +37,10 @@
 //--------------------------------------------------------------------------------------------------------/
 // Interface functions
 //--------------------------------------------------------------------------------------------------------/
-void Task_Clock_Init( void );
-void Task_Clock_Cycle( void );
+void Task_Snake_Init( void );
+void Task_Snake_Cycle( void );
 
 
-#endif  // TASK_CLOCK_H
+#endif  // TASK_SNAKE_H
 
 //-----------------------------------------------< EOF >--------------------------------------------------/
