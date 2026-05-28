@@ -9,10 +9,12 @@
     pkgs = import nixpkgs { inherit system; };
   in {
     devShells.${system}.default = pkgs.mkShell {
-      buildInputs = [
-        pkgs.SDL2
-        pkgs.SDL2.dev
-        pkgs.SDL2_ttf
+      buildInputs = with pkgs; [
+        SDL2
+        SDL2.dev
+        SDL2_ttf
+        bear
+        clang
       ];
 
       shellHook = ''
